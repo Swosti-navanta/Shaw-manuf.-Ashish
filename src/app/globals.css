@@ -1,0 +1,486 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Force-generate the responsive display utilities the design-system SideNav
+   relies on (rail = `hidden md:flex`). The DS ships these in its own
+   styles.css, but that loads BEFORE this file, and globals regenerates the
+   unconditional `.hidden` — which would otherwise win over the DS's earlier
+   `@media md{.md:flex}` at ≥768px and hide the collapsed nav rail. Emitting
+   them here lands `md:flex` after `.hidden` in the last-loaded sheet. */
+@source inline("hidden md:flex max-md:flex max-md:flex-col md:flex-row md:hidden");
+
+@theme inline {
+  --color-background: var(--surface-page);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  /* Shadcn-style aliases used by `@navanta-ai/design-system` (Avatar
+   *  fallback bg, etc.). Point them at the closest tokens we already
+   *  have so DS components inherit our palette without us shipping a
+   *  parallel theme system. */
+  --color-muted: var(--color-neutral-100);
+  --color-muted-foreground: var(--ds-text-secondary);
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Align the DS Dialog overlay with the app's hand-rolled modals (PO / policy
+   override), which use a navy scrim at 55% and no blur. The DS default is a
+   pure black/80 + 1px blur, so DS-based modals (Campaign, Vendor PIR, Floor
+   Plan) looked heavier than the rest. Scoped to the DS Dialog overlay only —
+   its role="presentation" backdrop that directly wraps a modal dialog. */
+div[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) {
+  background: rgba(15, 16, 35, 0.55) !important;
+  /* The DS blur is composed from `--tw-backdrop-blur`; neutralize it there so
+     the scrim reads flat like the PO modals. */
+  --tw-backdrop-blur: blur(0) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body {
+  background: var(--gradient-page-bg);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-badge {
+  background: var(--gradient-badge);
+}
+
+.iris-gradient {
+  background: var(--gradient-iris);
+}
+
+.sidebar-active-gradient {
+  background: var(--sidebar-active-fill);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── TYPOGRAPHY CLASSES ──────────────────────────────────────── */
+
+.type-badge {
+  font-size: var(--type-badge);
+  font-weight: 500;
+}
+
+.type-overline {
+  font-size: var(--type-overline);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.type-footnote {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.type-caption {
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.type-cell {
+  font-size: var(--type-cell);
+  font-weight: 400;
+  line-height: 1.42;
+  letter-spacing: 0.01em;
+}
+
+.type-cell-medium {
+  font-size: var(--type-cell);
+  font-weight: 500;
+  line-height: 1.42;
+  letter-spacing: 0.01em;
+}
+
+.type-cell-semibold {
+  font-size: var(--type-cell);
+  font-weight: 600;
+  line-height: 1.42;
+  letter-spacing: 0.01em;
+}
+
+.type-body {
+  font-size: var(--type-body);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.type-body-medium {
+  font-size: var(--type-body);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.type-body-semibold {
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.type-stat {
+  font-size: var(--type-stat);
+  font-weight: 700;
+}
+
+.type-subheading {
+  font-size: var(--type-subheading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.type-title {
+  font-size: var(--type-title);
+  font-weight: 600;
+  line-height: 1.44;
+}
+
+.type-page-title {
+  font-size: var(--type-page-title);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.type-hero {
+  font-size: var(--type-hero);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.noise-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.noise-overlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes iris-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes iris-star-pulse {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes iris-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-slide-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-24px); }
+}
+
+@keyframes iris-typing-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes iris-glow {
+  0%, 100% { box-shadow: inset 0 0 0 2px rgba(0, 91, 137, 0.15); }
+  50% { box-shadow: inset 0 0 0 2px rgba(0, 91, 137, 0.5); }
+}
+.iris-highlight {
+  animation: iris-glow 1.5s ease-in-out 2;
+  box-shadow: inset 0 0 0 2px rgba(0, 91, 137, 0.25);
+  background: rgba(237, 244, 247, 0.4) !important;
+}
+
+.iris-typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  margin: 0 2px;
+}
+.iris-typing-dot:nth-child(1) { animation: iris-typing-dot 1s infinite 0ms; }
+.iris-typing-dot:nth-child(2) { animation: iris-typing-dot 1s infinite 200ms; }
+.iris-typing-dot:nth-child(3) { animation: iris-typing-dot 1s infinite 400ms; }
+
+.iris-btn-primary {
+  background: var(--btn-ai-bg) !important;
+  transition: background 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+}
+.iris-btn-primary:hover:not(:disabled) {
+  background: var(--btn-ai-bg-hover) !important;
+}
+.iris-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.iris-btn-primary:disabled {
+  opacity: 0.5;
+  color: #FFFFFF !important;
+  cursor: not-allowed;
+}
+
+/* Profile dropdown entrance */
+@keyframes profileDropdownIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Carousel image fade-in */
+@keyframes img-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.product-img-fade { animation: img-fade-in 180ms ease; }
+
+/* Spin animation for loading indicators */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Commit success band entrance — fires when the SummaryCard swaps from the
+   recommended-action / override / hold editor into the committed success
+   state. Soft slide-up + scale so the green band reads as "landed". */
+@keyframes iris-commit-success {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.985); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.iris-commit-success {
+  animation: iris-commit-success 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Success check-mark scale-in — used inside the committed band so the
+   CheckCircle icon pops alongside the band entrance. */
+@keyframes iris-check-burst {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.iris-check-burst {
+  animation: iris-check-burst 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: 80ms;
+  transform-origin: center;
+}
+
+/* DS Tabs `underline` variant puts a soft pill behind the active tab's label
+   by default; this instance wants the plain underline with no fill, and the
+   pill's built-in horizontal padding reads as too much whitespace once the
+   fill is gone. */
+.tabs-no-pill [role="tab"] span {
+  background: transparent !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Brief "Approving…" / "Confirming…" pulse on the primary action button
+   between click and the band swapping to the success state. */
+@keyframes iris-btn-committing {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(0.96); }
+}
+.iris-btn-committing {
+  animation: iris-btn-committing 220ms ease-in-out both;
+}
+
+/* Matrix cell pulse — fires when an exception clears out of a cell, so the
+   planner sees which cell just dropped a count. */
+@keyframes matrix-pulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(140, 93, 225, 0.0); }
+  40%  { transform: scale(1.03); box-shadow: 0 0 0 6px rgba(140, 93, 225, 0.18); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(140, 93, 225, 0.0); }
+}
+.matrix-cell-pulse {
+  animation: matrix-pulse 600ms ease-out;
+}
+
+/* Row spotlight — used when arriving at a table via a deep link (e.g. the
+   Margin page from "Open in Margin"). Flashes an iris tint and settles to a
+   subtle persistent highlight. */
+@keyframes fp-row-highlight {
+  0%   { background-color: rgba(0, 167, 239, 0.22); }
+  100% { background-color: rgba(0, 167, 239, 0.08); }
+}
+.fp-row-highlight {
+  animation: fp-row-highlight 1.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── KPI Card responsive ─────────────────────── */
+
+@container (max-width: 280px) {
+  .kpi-header .kpi-value {
+    font-size: 18px !important;
+  }
+  .kpi-header .kpi-label {
+    white-space: normal !important;
+  }
+}
+
+@container (max-width: 200px) {
+  .kpi-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .kpi-header .kpi-value {
+    font-size: 18px !important;
+    top: 0 !important;
+  }
+  .kpi-card {
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+}
+
+/* Fixed ~320px search on the left with the filter group pulled to the right
+   on one row — the Figma toolbar house rule. The DS facet band
+   (`@container/tsfilter`) ships responsive `@4xl` classes that don't activate
+   in these layouts, so we pin the wrapper's two children directly. Applies to
+   the Floor Plan Action Center and the Planning Product Catalog. */
+@media (min-width: 1024px) {
+  .fp-action-center [class*="container/tsfilter"] > :first-child,
+  .planning-catalog-shell [class*="container/tsfilter"] > :first-child {
+    flex: 0 0 320px;
+    width: 320px;
+    max-width: 320px;
+  }
+  .fp-action-center [class*="container/tsfilter"] > :nth-child(2),
+  .planning-catalog-shell [class*="container/tsfilter"] > :nth-child(2) {
+    margin-left: auto;
+    width: auto;
+  }
+  /* Action Center uses the DS *legacy* toolbar (custom multi-select dropdowns),
+     which has no `@container/tsfilter`, so the search's responsive width class
+     never fires and it defaults to full width. Pin the search wrapper directly
+     (its `ml-auto` filter group then rides on the same row, right-aligned). */
+  .fp-action-center [class*="table-search-width"],
+  .planning-catalog-shell [class*="table-search-width"],
+  .fp-margin-shell [class*="table-search-width"] {
+    flex: 0 0 320px;
+    width: 320px;
+    max-width: 320px;
+  }
+}
+
+/* ── Light-lock ───────────────────────────────────────────────────────────
+   This app is light-only. @navanta-ai/design-system ships
+   prefers-color-scheme:dark variants (e.g. DialogFooter's dark:bg-zinc-950).
+   On a dark-mode OS those flip DS surfaces dark while the app's own light
+   tokens stay light — an inconsistent half-dark UI (the dark dialog footer).
+   Neutralize the DS dark backgrounds / borders / text back to light values so
+   the app renders identically regardless of the visitor's OS theme. Scoped to
+   the same media query, so it's a no-op when the OS is light. */
+@media (prefers-color-scheme: dark) {
+  /* light-lock active */
+  .dark\:bg-zinc-950        { background-color: #f9f9f9 !important; } /* dialog footer */
+  .dark\:bg-muted           { background-color: #f4f4f5 !important; }
+  .dark\:bg-blue-950        { background-color: #eff6ff !important; }
+  .dark\:bg-green-950       { background-color: #f0fdf4 !important; }
+  .dark\:bg-red-950         { background-color: #fef2f2 !important; }
+  .dark\:bg-yellow-950      { background-color: #fefce8 !important; }
+  .dark\:bg-destructive\/20 { background-color: #fef2f2 !important; }
+  .dark\:bg-success\/20     { background-color: #f0fdf4 !important; }
+  .dark\:border-blue-800    { border-color: #bfdbfe !important; }
+  .dark\:border-green-800   { border-color: #bbf7d0 !important; }
+  .dark\:border-red-800     { border-color: #fecaca !important; }
+  .dark\:border-yellow-800  { border-color: #fef08a !important; }
+  .dark\:text-blue-200      { color: #1e40af !important; }
+  .dark\:text-green-200     { color: #166534 !important; }
+  .dark\:text-red-200       { color: #991b1b !important; }
+  .dark\:text-yellow-200    { color: #854d0e !important; }
+  .dark\:text-success       { color: #15803d !important; }
+  .dark\:text-foreground    { color: #18181b !important; }
+}
+
+/* ── DS TableShell filter band: restore the inline-vs-collapsed switch ──────
+   The DS filter band uses a container query (`@container/tsfilter`) to swap its
+   filters from a single collapsed "Filters" dropdown (narrow) to inline chips
+   at ≥48rem. The DS stylesheet ships those `@3xl/tsfilter:*` utilities, but it
+   is imported BEFORE globals.css (see layout.tsx), so Tailwind's own layered
+   `.hidden` / `.flex` — same specificity, later in the cascade — win and pin the
+   band to the narrow layout at every width. Re-assert the two container-query
+   utilities here UNLAYERED so they beat the layered base utilities whenever the
+   band is actually wide enough. */
+@container tsfilter (min-width: 48rem) {
+  .\@3xl\/tsfilter\:flex   { display: flex; }
+  .\@3xl\/tsfilter\:hidden { display: none; }
+}
+
+/* ── DS facet dropdown: enabled-looking placeholder ────────────────────────
+   The DS `FacetMultiSelect` trigger renders its placeholder (the facet label,
+   e.g. "Type") in `--text-neutral` (#94a3b8, slate-400) when nothing is
+   selected, which reads as a DISABLED control. Darken the unselected
+   placeholder to `--text-secondary` (#52525c) — the same tone the band's other
+   labels use, so it clearly looks interactive while staying lighter than a
+   selected value (`--text-primary`). Scoped to the facet trigger's placeholder
+   span only (the selected state drops the `text-neutral` class), so selected
+   values are untouched. Unlayered, so it beats the layered DS utility. */
+button[aria-haspopup="dialog"] > span.line-clamp-1.text-\[var\(--text-neutral\)\] {
+  color: var(--text-secondary);
+}
+
+
+/* Feed entries appended by a decision slide in, so the plan visibly
+   correcting itself reads as something that just happened. */
+@keyframes shaw-slidein {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The DS DetailPanelShell hardcodes a left border in `--brand-primary`, which
+   resolves to Iris purple in this app and reads as a stray accent on an
+   otherwise neutral floating panel. The panel portals to <body>, so scope the
+   override to that direct child rather than to the Tailwind class. */
+body > .fixed.z-\[95\] {
+  border-left-color: transparent;
+}
