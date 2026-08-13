@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "node -e \"const t=process.env.GITHUB_TOKEN||'';console.log('[preinstall] GITHUB_TOKEN present:',Boolean(t),'| length:',t.length,'| prefix:',t.slice(0,4));console.log('[preinstall] NPM_RC present:',Boolean(process.env.NPM_RC));\" && npm install"
+}
