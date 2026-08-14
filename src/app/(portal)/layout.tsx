@@ -13,6 +13,8 @@ import { YarnProvider } from "@/context/YarnContext";
 import { DetailDrawerProvider } from "@/context/DetailDrawerContext";
 import Sidebar from "@/components/layout/Sidebar";
 import { YarnConeMask } from "@/components/ui/YarnCone";
+import ChatPanel from "@/components/chat/ChatPanel";
+import { ChatPanelProvider } from "@/context/ChatPanelContext";
 
 export default function PortalLayout({ children }: { children: ReactNode }) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -32,6 +34,7 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
             <QualityProvider>
             <YarnProvider>
               <DetailDrawerProvider>
+              <ChatPanelProvider>
               <div className="flex h-screen w-screen overflow-hidden">
                 <Sidebar expanded={sidebarExpanded} onExpandedChange={setSidebarExpanded} />
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -52,7 +55,7 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
                     />
 
                     <div className="relative h-full flex">
-                      <div className="flex-1 overflow-y-auto hide-scrollbar noise-overlay">
+                      <div className="flex-1 min-w-0 overflow-y-auto hide-scrollbar noise-overlay">
                         <div
                           className="relative z-[1] flex flex-col gap-6 py-6 min-h-full px-[16px] md:px-[24px]"
                           style={{ maxWidth: 1648, marginLeft: "auto", marginRight: "auto" }}
@@ -60,6 +63,10 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
                           {children}
                         </div>
                       </div>
+
+                      {/* Docked to the right of the page, so the agent sits
+                          alongside the work rather than on top of it. */}
+                      <ChatPanel />
                     </div>
                   </div>
                 </div>
@@ -67,6 +74,7 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
               <DetailDrawer />
               {/* One shared cone silhouette; every bar tints its own copy. */}
               <YarnConeMask />
+              </ChatPanelProvider>
             </DetailDrawerProvider>
               </YarnProvider>
             </QualityProvider>

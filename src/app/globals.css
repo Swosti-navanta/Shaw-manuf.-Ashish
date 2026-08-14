@@ -515,3 +515,9 @@ body > .fixed.z-\[90\] {
 body > .fixed.z-\[95\] {
   z-index: 1101 !important;
 }
+
+/* The agent panel's typing indicator. */
+@keyframes chat-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}

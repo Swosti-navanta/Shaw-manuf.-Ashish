@@ -10,7 +10,8 @@ import {
   CREEL,
   WHOLE_VS_SPLIT,
   type ApprovalRow,
-  type GenealogyNode,
+  traceFor,
+  type TraceStep,
 } from "@/types/yarn";
 import YarnCone from "@/components/ui/YarnCone";
 import DrillLink from "@/components/ui/DrillLink";
@@ -232,7 +233,7 @@ export default function ApprovalDeckModal({
 
             {tab === "origin" && (
               <div className="flex flex-col" style={{ gap: 10 }}>
-                <Genealogy chain={approval.genealogy} />
+                <TraceChain steps={traceFor(approval)} />
                 <p
                   className="type-caption"
                   style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
@@ -627,96 +628,94 @@ function TradeoffCard({
  * most of what Sable proposes is an instruction for product that doesn't
  * exist, and the gap is the point rather than an omission.
  */
-function Genealogy({ chain }: { chain: ApprovalRow["genealogy"] }) {
-  const stages: Array<{
-    label: string;
-    kind: "yarn" | "dyelot" | "batch";
-    node?: GenealogyNode;
-  }> = [
-    { label: "Yarn lot", kind: "yarn", node: chain.yarn },
-    { label: "Dye lot", kind: "dyelot", node: chain.dyeLot },
-    { label: "Batch", kind: "batch", node: chain.batch },
-  ];
-
+/**
+ * Where a lot has been, stage by stage, with the machine named at each one.
+ *
+ * The chain used to be three cards — yarn lot, dye lot, batch — which said what
+ * the lot *is* but not where it has been. "Which belt ran this" is the first
+ * question asked when a claim comes back, and it was the one thing the panel
+ * couldn't answer.
+ *
+ * Vertical, because five stages each carrying a machine and a timestamp is a
+ * column of records rather than a diagram. Stages that haven't happened are
+ * drawn hollow: most of what Sable proposes is an instruction for product that
+ * doesn't exist yet, so a chain that stops early is the normal case, and saying
+ * so plainly beats a gap that reads as missing data.
+ */
+function TraceChain({ steps }: { steps: ReadonlyArray<TraceStep> }) {
   return (
-    <div
-      className="grid"
-      style={{ gridTemplateColumns: `repeat(${stages.length}, 1fr)`, gap: 0 }}
-    >
-      {stages.map((s, i) => {
-        const done = Boolean(s.node);
-        const first = i === 0;
-        const last = i === stages.length - 1;
+    <div className="flex flex-col">
+      {steps.map((step, i) => {
+        const last = i === steps.length - 1;
         return (
-          <div key={s.label} className="flex flex-col" style={{ gap: 10 }}>
-            {/* The spine. Half-width rules at the ends keep the line from
-                overhanging the first and last node. */}
-            <div className="relative flex items-center" style={{ height: 11 }}>
+          <div key={step.stage} className="flex" style={{ gap: 12 }}>
+            <div className="flex flex-col items-center" style={{ width: 12 }}>
               <span
                 aria-hidden="true"
-                className="absolute"
                 style={{
-                  left: first ? "50%" : 0,
-                  right: last ? "50%" : 0,
-                  height: 1,
-                  background: "var(--border-default)",
-                }}
-              />
-              <span
-                aria-hidden="true"
-                className="absolute"
-                style={{
-                  left: "50%",
-                  transform: "translateX(-50%)",
                   width: 11,
                   height: 11,
                   borderRadius: "50%",
-                  background: done ? "var(--color-iris-500, #7C5CFF)" : "var(--surface-base)",
-                  boxShadow: done
+                  marginTop: 4,
+                  background: step.done ? "var(--color-iris-500, #7C5CFF)" : "var(--surface-base)",
+                  boxShadow: step.done
                     ? "0 0 0 3px var(--color-iris-100)"
                     : "inset 0 0 0 1px var(--border-default)",
                 }}
               />
+              {!last && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    flex: 1,
+                    width: 1,
+                    marginTop: 2,
+                    background: "var(--border-default)",
+                  }}
+                />
+              )}
             </div>
 
             <div
               className="flex flex-col"
-              style={{
-                gap: 3,
-                marginRight: last ? 0 : 10,
-                padding: "10px 12px",
-                borderRadius: 10,
-                background: done ? "var(--surface-raised)" : "transparent",
-                border: done ? "1px solid transparent" : "1px dashed var(--border-default)",
-              }}
+              style={{ gap: 2, paddingBottom: last ? 0 : 16, flex: 1, minWidth: 0 }}
             >
-              <span
-                style={{
-                  fontSize: 10,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "var(--ds-text-placeholder, var(--text-muted))",
-                }}
-              >
-                {s.label}
+              <span className="flex items-baseline justify-between" style={{ gap: 10 }}>
+                <span className="inline-flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
+                  <span
+                    className="type-body-medium"
+                    style={{
+                      color: step.done ? "var(--ds-text-primary)" : "var(--ds-text-secondary)",
+                    }}
+                  >
+                    {step.stage}
+                  </span>
+                  {step.id && (
+                    <span className="type-caption" style={{ color: "var(--link-color)" }}>
+                      {step.id}
+                    </span>
+                  )}
+                </span>
+                <span
+                  className="type-caption shrink-0"
+                  style={{ color: "var(--ds-text-secondary)" }}
+                >
+                  {step.at}
+                </span>
               </span>
-              {s.node ? (
-                <>
-                  <DrillLink kind={s.kind} id={s.node.id} />
-                  <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-                    {s.node.note}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="type-body" style={{ color: "var(--ds-text-secondary)" }}>
-                    Not run yet
-                  </span>
-                  <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-                    Nothing exists to trace until this is approved
-                  </span>
-                </>
+
+              {/* The machine — the first thing asked when a claim comes back. */}
+              {step.where && (
+                <span
+                  className="type-caption"
+                  style={{ color: "var(--ds-text-primary)", fontWeight: 500 }}
+                >
+                  {step.where}
+                </span>
               )}
+              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                {step.detail}
+              </span>
             </div>
           </div>
         );
