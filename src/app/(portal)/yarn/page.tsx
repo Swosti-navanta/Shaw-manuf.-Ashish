@@ -19,7 +19,10 @@ import DrillLink from "@/components/ui/DrillLink";
 import ApprovalDeckModal from "./_components/ApprovalDeckModal";
 import SableRead from "./_components/SableRead";
 
-type TabId = "person" | "settled";
+/** The two families of proposal, as the queue tabs. A row's family decides
+ *  which deck it opens — yarn-lot rows get the mapping/utilisation/spread deck,
+ *  creel-plan rows get the alignment/threading/traceability one. */
+type TabId = "yarnlot" | "creelplan";
 
 /**
  * Yarn is Sable's approval queue.
@@ -40,18 +43,35 @@ type TabId = "person" | "settled";
 export default function YarnPage() {
   const { plant } = useScope();
   const { profile } = usePersona();
-  const { states, pendingApprovals } = useYarn();
+  const { states } = useYarn();
 
-  const [tab, setTab] = useState<TabId>("person");
+  const [tab, setTab] = useState<TabId>("yarnlot");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [deck, setDeck] = useState<ApprovalRow | null>(null);
 
-  const rows = useMemo(
-    () =>
-      APPROVALS.filter((a) => (tab === "person" ? !states.has(a.id) : states.has(a.id))),
-    [tab, states],
+  // The pipeline. A yarn-lot proposal is acted on until it is approved, at
+  // which point it leaves this queue and its creel-plan step becomes visible —
+  // so a creel-plan row only appears once the yarn lot it follows is signed.
+  const yarnLotRows = useMemo(
+    () => APPROVALS.filter((a) => a.family === "yarnlot" && states.get(a.id) !== "approved"),
+    [states],
   );
+  const creelPlanRows = useMemo(
+    () =>
+      APPROVALS.filter(
+        (a) => a.family === "creelplan" && a.follows && states.get(a.follows) === "approved",
+      ),
+    [states],
+  );
+  const rows = tab === "yarnlot" ? yarnLotRows : creelPlanRows;
+
+  // Only proposals actually on a queue right now count toward the header —
+  // a creel-plan step still gated behind an unapproved yarn lot isn't yet a
+  // decision anyone can make.
+  const actionable =
+    yarnLotRows.filter((a) => !states.has(a.id)).length +
+    creelPlanRows.filter((a) => !states.has(a.id)).length;
 
   const columns = useMemo<DataTableColumn<ApprovalRow>[]>(
     () => [
@@ -164,40 +184,50 @@ export default function YarnPage() {
           </span>
         ),
       },
-      ...(tab === "settled"
-        ? [
-            {
-              key: "outcome",
-              label: "Outcome",
-              width: 128,
-              cell: (row: ApprovalRow) => {
-                const approved = states.get(row.id) === "approved";
-                return (
-                  <span
-                    className="type-body"
-                    style={{ color: approved ? "var(--text-success)" : "var(--ds-text-secondary)" }}
-                  >
-                    {approved ? "Approved" : "Sent back"}
-                  </span>
-                );
-              },
-            } satisfies DataTableColumn<ApprovalRow>,
-          ]
-        : []),
+      {
+        // Always present now that the tabs split by family rather than by
+        // whether a row is settled — both tabs mix signed and waiting rows,
+        // so the state has to be readable in the row itself.
+        key: "outcome",
+        label: "Status",
+        width: 120,
+        cell: (row) => {
+          const state = states.get(row.id);
+          if (!state) {
+            return (
+              <span className="type-body" style={{ color: "var(--text-warning, #B26B00)" }}>
+                Needs you
+              </span>
+            );
+          }
+          const approved = state === "approved";
+          return (
+            <span
+              className="type-body"
+              style={{ color: approved ? "var(--text-success)" : "var(--ds-text-secondary)" }}
+            >
+              {approved ? "Approved" : "Sent back"}
+            </span>
+          );
+        },
+      },
       {
         key: "action",
         label: "Action",
         width: 116,
         align: "right" as const,
         stopRowClick: true,
+        // Not "Review": a yarn-lot proposal is acted on and approved to move it
+        // into Creel Plan, so the button names the act. A row that's already
+        // settled just reopens.
         cell: (row) => (
           <Button variant="outline" size="sm" onClick={() => setDeck(row)}>
-            {states.has(row.id) ? "Open" : "Review"}
+            {states.has(row.id) ? "Open" : "Approve"}
           </Button>
         ),
       },
     ],
-    [tab, states],
+    [states],
   );
 
   return (
@@ -221,8 +251,8 @@ export default function YarnPage() {
             color: "var(--ds-text-primary)",
           }}
         >
-          {pendingApprovals > 0
-            ? `${pendingApprovals} proposal${pendingApprovals === 1 ? "" : "s"} need your sign-off`
+          {actionable > 0
+            ? `${actionable} proposal${actionable === 1 ? "" : "s"} need your sign-off`
             : "Nothing waiting on your sign-off"}
         </h1>
         <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
@@ -234,18 +264,18 @@ export default function YarnPage() {
       <SableRead />
 
       <TableShell
-        title="Approval queue"
+        title="Yarn at a glance"
         icon={Drop}
         tabs={[
           {
-            id: "person",
-            label: "Needs you",
-            badge: APPROVALS.filter((a) => !states.has(a.id)).length,
+            id: "yarnlot",
+            label: "Yarn Lot",
+            badge: yarnLotRows.filter((a) => !states.has(a.id)).length,
           },
           {
-            id: "settled",
-            label: "Settled",
-            badge: APPROVALS.filter((a) => states.has(a.id)).length,
+            id: "creelplan",
+            label: "Creel Plan",
+            badge: creelPlanRows.filter((a) => !states.has(a.id)).length,
           },
         ]}
         activeTab={tab}
@@ -262,11 +292,11 @@ export default function YarnPage() {
         emptyState={
           <EmptyState
             icon={<Drop weight="duotone" style={{ width: 24, height: 24 }} />}
-            title={tab === "person" ? "Nothing waiting on you" : "Nothing settled yet"}
+            title={tab === "yarnlot" ? "No yarn-lot proposals" : "No creel plans yet"}
             description={
-              tab === "person"
-                ? "Every proposal Sable raised this week has been signed or sent back."
-                : "Approvals you sign or return this week will collect here."
+              tab === "yarnlot"
+                ? "Dye formulas, run orders and lot sizing Sable raises will collect here."
+                : "A creel plan appears here once the yarn lot it runs on is approved. Sign off a Yarn Lot proposal to open its loading plan."
             }
           />
         }

@@ -9,7 +9,6 @@ import {
   Drop,
   Gauge,
   ShieldCheck,
-  Receipt,
   Sliders,
   ChartBar,
 } from "@phosphor-icons/react";
@@ -43,7 +42,6 @@ const FLOOR_ITEMS: NavDef[] = [
   { name: "Yarn", href: "/yarn", icon: Drop, agent: "Sable" },
   { name: "Make", href: "/make", icon: Gauge, agent: "Rowan" },
   { name: "Quality", href: "/quality", icon: ShieldCheck, agent: "Wren" },
-  { name: "Claims", href: "/quality/claims", icon: Receipt, agent: "Wren" },
 ];
 
 const PLAN_ITEMS: NavDef[] = [

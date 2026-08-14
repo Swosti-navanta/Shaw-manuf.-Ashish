@@ -50,7 +50,7 @@ export default function SableRead() {
       >
         {YARN_KPIS.map((k) => (
           <div
-            key={k.label}
+            key={`${k.label}·${k.detail}`}
             className="flex flex-col"
             style={{
               gap: 4,

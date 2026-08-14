@@ -317,6 +317,7 @@ export default function MakePage() {
           rowKey={(a) => a.id}
           rowHeight={64}
           rowBorderColor="#F1F3F5"
+          onRowClick={(a) => setDeck(a)}
         />
       </TableShell>
 

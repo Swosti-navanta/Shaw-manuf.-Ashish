@@ -12,6 +12,7 @@ import {
   type DowntimeReason,
   type FeedEvent,
   type LineState,
+  type MachineSignal,
   type Measurement,
   type OrderRef,
   type RecoveryOption,
@@ -155,6 +156,32 @@ export const LINES: ReadonlyArray<LineState> = [
 /** The constraint line — indexed once so every consumer agrees on it. */
 export const CONSTRAINT_LINE = LINES[1];
 
+/**
+ * The vibration signal behind Rowan's work-order draft.
+ *
+ * The current reading sits just past the plant's 4.0 mm/s alert limit — which
+ * is why it is "held at the limit": the signal routes to maintenance on its
+ * own, but raising the order ahead of the scheduled PM is a person's call. The
+ * numbers agree with the read sentence and the maintenance tab rather than
+ * being a second, drifting copy.
+ */
+export const MACHINE_SIGNAL: MachineSignal = {
+  asset: CONSTRAINT_LINE.name,
+  component: "motor bearing, drive side",
+  signalType: "Vibration (mm/s)",
+  unit: "mm/s",
+  current: 4.2,
+  threshold: 4.0,
+  scaleMax: 6.0,
+  currentDisplay: CONSTRAINT_LINE.vibration?.current ?? "4.2 mm/s",
+  thresholdDisplay: "4.0 limit",
+  firstDetected: "34 min ago",
+  trend: "Rising over 3 shifts",
+  pmScheduled: CONSTRAINT_LINE.pmWindow ?? "in 3 days",
+  lastPm: "14 days ago",
+  overThreshold: true,
+};
+
 /** Achieved rate against a flat 420 standard, from 06:00 to now. The gap
  *  opens steadily rather than dropping off a cliff, which is exactly why a
  *  fixed alert band caught it and a person didn't. */
@@ -210,18 +237,19 @@ export const OPTIONS: Record<string, RecoveryOption> = {
     title: "Re-sequence · run DL-4471 whole",
     detail:
       "Hold both dates. Slots 2 and 3 swap; ORD-77412 runs first, and the dye lot stays whole.",
+    why: "No customer date moves · no shade risk · the lot stays whole.",
     cost: "+$1,840",
     costLabel: "changeover",
     effect: "reorder",
     recommended: true,
     breakdown: [
-      { label: "Changeover · dark→light purge", value: "+$1,840" },
-      { label: "Overtime", value: "$0" },
-      { label: "Shade / claim risk", value: "None" },
-      { label: "Net", value: "+$1,840", net: true },
+      { label: "Changeover · dark→light purge", value: "+$1,840", hint: "Two slots swap" },
+      { label: "Overtime", value: "$0", hint: "No overtime required" },
+      { label: "Shade / claim risk", value: "None", hint: "No additional risk" },
+      { label: "Net impact", value: "+$1,840", hint: "Total incremental cost", net: true },
     ],
     schedule: [
-      { label: "DL-4471", value: "Runs whole" },
+      { label: "DL-4471", value: "Runs whole", good: true },
       { label: "ORD-77310 · fixed", value: "Held" },
       { label: "ORD-77412", value: "Held" },
       { label: "Backing 2", value: "Slots 2 & 3 swap" },
@@ -230,16 +258,33 @@ export const OPTIONS: Record<string, RecoveryOption> = {
   B: {
     id: "B",
     title: "Split DL-4471 across two dye runs",
-    detail: "Zero changeover — but two dye runs on a shade-critical lot.",
-    cost: "$0",
+    detail: "Cheapest to run — but two dye runs on a shade-critical lot put $18,400 at risk.",
+    why: "Cheapest changeover, but splitting a shade-critical lot carries the claim risk that produced CLM-2291.",
+    cost: "+$420",
     costLabel: "changeover",
     effect: "split",
     risky: true,
     breakdown: [
-      { label: "Changeover", value: "$0" },
-      { label: "Shade mismatch risk", value: "High → CLM-2291", bad: true },
-      { label: "Expected seconds downgrade", value: "−$18,400", bad: true },
-      { label: "Net exposure", value: "−$18,400", net: true, bad: true },
+      { label: "Changeover", value: "+$420", hint: "Short purge between the two runs" },
+      {
+        label: "Shade mismatch risk",
+        value: "High → CLM-2291",
+        hint: "Two dye runs on a shade-critical lot",
+        bad: true,
+      },
+      {
+        label: "Expected seconds downgrade",
+        value: "−$18,400",
+        hint: "Probable first-quality loss",
+        bad: true,
+      },
+      {
+        label: "Net exposure",
+        value: "−$18,400",
+        hint: "Cheapest headline, worst case",
+        net: true,
+        bad: true,
+      },
     ],
     schedule: [
       { label: "DL-4471", value: "Split · shade risk", bad: true },
@@ -252,16 +297,17 @@ export const OPTIONS: Record<string, RecoveryOption> = {
     id: "C",
     title: "Expedite · Saturday overtime",
     detail: "Adds a sixth slot on an overtime shift to recover the hours.",
+    why: "Holds both dates and keeps the lot whole — but buys it with $6,200 of overtime.",
     cost: "+$6,200",
     costLabel: "overtime",
     effect: "expedite",
     breakdown: [
-      { label: "Changeover", value: "+$640" },
-      { label: "Saturday overtime", value: "+$6,200" },
-      { label: "Net", value: "+$6,840", net: true },
+      { label: "Changeover", value: "+$640", hint: "One purge" },
+      { label: "Saturday overtime", value: "+$6,200", hint: "A sixth slot, overtime rate" },
+      { label: "Net impact", value: "+$6,840", hint: "Total incremental cost", net: true },
     ],
     schedule: [
-      { label: "DL-4471", value: "Runs whole" },
+      { label: "DL-4471", value: "Runs whole", good: true },
       { label: "ORD-77310 · fixed", value: "Held" },
       { label: "ORD-77412", value: "Held" },
       { label: "Backing 2", value: "+ Saturday slot" },
@@ -359,9 +405,9 @@ export const SHIFT_KPIS: ReadonlyArray<{
   { kind: "output", title: "Output", value: "2,940 yd", delta: "−340 vs plan" },
   {
     kind: "margin",
-    title: "Margin at risk",
-    value: "$41,200",
-    delta: "$18,400 from sequencing",
+    title: "Orders at risk",
+    value: "1",
+    delta: "ORD-77310 · fixed install date",
   },
 ];
 
@@ -409,11 +455,10 @@ export const KPI_DETAIL: Record<
     body: "Whether you made it in the planned sequence, on the planned day. The 35-point gap to attainment is the whole argument for scheduling.",
   },
   margin: {
-    title: "Margin at risk",
-    value: "$41,200",
+    title: "Orders at risk",
+    value: "1",
     tone: "bad",
-    body: "This week's first-quality-to-seconds gap across downgraded rolls — a margin loss, not scrap. $18,400 of it traces to one sequencing decision, which is the share Quality can actually act on.",
-    extra: "yield",
+    body: "One committed order is exposed this shift — ORD-77310, a fixed install date running on DL-4471. Re-sequencing protects it; splitting the lot to save changeover would put its shade — and the date — at risk.",
   },
   fqy: {
     title: "First-quality yield",

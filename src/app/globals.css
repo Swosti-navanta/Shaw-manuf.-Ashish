@@ -484,3 +484,12 @@ button[aria-haspopup="dialog"] > span.line-clamp-1.text-\[var\(--text-neutral\)\
 body > .fixed.z-\[95\] {
   border-left-color: transparent;
 }
+
+/* KPI/detail drawers open from tiles inside the z-1000 deck modal, so lift
+   the DS DetailPanelShell scrim/panel above it. */
+body > .fixed.z-\[90\] {
+  z-index: 1100 !important;
+}
+body > .fixed.z-\[95\] {
+  z-index: 1101 !important;
+}

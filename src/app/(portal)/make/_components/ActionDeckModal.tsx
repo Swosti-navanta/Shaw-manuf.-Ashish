@@ -3,7 +3,24 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AiStar, Button, PanelInfoGrid, Tabs } from "@navanta-ai/design-system";
-import { ArrowRight, ArrowsClockwise, Wrench, X } from "@phosphor-icons/react";
+import {
+  ArrowRight,
+  ArrowsClockwise,
+  ArrowsLeftRight,
+  Buildings,
+  CalendarBlank,
+  CheckCircle,
+  Clock,
+  Package,
+  ShieldCheck,
+  Stack,
+  Swatches,
+  UsersThree,
+  WarningCircle,
+  Wrench,
+  X,
+} from "@phosphor-icons/react";
+import type { Icon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useRun } from "@/context/RunContext";
 import { useDetailDrawer } from "@/context/DetailDrawerContext";
@@ -28,18 +45,41 @@ import DecisionBand from "./DecisionBand";
 import RateChart from "./RateChart";
 
 /** What travels to the maintenance system. Shown as a tab rather than a
- *  confirm gate — proving the "no re-keying" claim shouldn't cost a click. */
-const WORK_ORDER_PAYLOAD = [
-  { label: "Asset", value: CONSTRAINT_LINE.name },
+ *  confirm gate — proving the "no re-keying" claim shouldn't cost a click.
+ *  Context is the one field a person tends to want to nudge (which run the
+ *  ticket is anchored to), so it's chooseable below. */
+const CONTEXT_OPTIONS = [
   {
-    label: "Trigger",
-    value: `Vibration ${CONSTRAINT_LINE.vibration?.current} vs ${CONSTRAINT_LINE.vibration?.baseline} baseline`,
+    id: "run",
+    label: "Run at risk · ORD-77310 · DL-4471",
+    detail: "Rowan's pick — the run the vibration is threatening",
+    recommended: true,
   },
-  { label: "Priority", value: `High — PM already due ${CONSTRAINT_LINE.pmWindow}` },
-  { label: "Context", value: "Run at risk · ORD-77310 · DL-4471" },
-  { label: "Route to", value: "your maintenance system" },
-  { label: "Raised by", value: "Rowan · auto-drafted" },
-];
+  {
+    id: "line",
+    label: "Constraint line · Backing 2 · full shift",
+    detail: "Frames it as the line's problem, not one order's",
+  },
+  {
+    id: "asset",
+    label: "Asset only · vibration signal + PM history",
+    detail: "Ticket carries the machine story, no run context",
+  },
+] as const;
+
+function staticPayload(contextLabel: string) {
+  return [
+    { label: "Asset", value: CONSTRAINT_LINE.name },
+    {
+      label: "Trigger",
+      value: `Vibration ${CONSTRAINT_LINE.vibration?.current} vs ${CONSTRAINT_LINE.vibration?.baseline} baseline`,
+    },
+    { label: "Priority", value: `High — PM already due ${CONSTRAINT_LINE.pmWindow}` },
+    { label: "Context", value: contextLabel },
+    { label: "Route to", value: "your maintenance system" },
+    { label: "Raised by", value: "Rowan · auto-drafted" },
+  ];
+}
 
 interface DeckMetric {
   label: string;
@@ -73,9 +113,12 @@ const METRICS_BY_KIND: Record<string, DeckMetric[]> = {
       kpi: "oee",
     },
     {
-      label: "Vibration",
-      value: CONSTRAINT_LINE.vibration?.current ?? "—",
-      detail: `baseline ${CONSTRAINT_LINE.vibration?.baseline}`,
+      // A projected smooth-running window, framed as time-to-check rather than a
+      // bare reading. Answers "how long before this needs someone" without
+      // dumping the raw vibration figure back onto the tile.
+      label: "Runs safely",
+      value: "~36 h",
+      detail: "before it needs a check",
       alert: true,
     },
     { label: "Next PM", value: CONSTRAINT_LINE.pmWindow ?? "—", detail: "already scheduled" },
@@ -215,6 +258,153 @@ const TABS_BY_KIND: Record<string, { id: DeckTab; label: string }[]> = {
   report: [{ id: "what", label: "What happened" }],
 };
 
+/* ─── Shared row primitives ───────────────────────────────────────────────
+ *
+ * The deck's evidence tabs were flat label→value grids; these give each row a
+ * tinted icon tile and an optional gloss, and let a status read as a pill. One
+ * set of primitives so Cost breakdown, What's committed and the schedule all
+ * share a rhythm instead of each inventing its own.
+ */
+
+type Tone = "iris" | "blue" | "green" | "amber" | "red" | "teal";
+
+const TONE: Record<Tone, { bg: string; fg: string }> = {
+  iris: { bg: "var(--color-iris-100)", fg: "var(--color-iris-700)" },
+  blue: { bg: "#E8F1FF", fg: "#1D63D1" },
+  green: { bg: "var(--surface-success)", fg: "var(--text-success)" },
+  amber: { bg: "#FEF3E2", fg: "#B7791F" },
+  red: { bg: "var(--surface-danger)", fg: "var(--text-danger)" },
+  teal: { bg: "#E2F6F4", fg: "#0E8577" },
+};
+
+/** A plain, tone-colored glyph — the left edge of every evidence row. No
+ *  tile: this app doesn't box its icons. */
+function IconTile({ icon: Ico, tone }: { icon: Icon; tone: Tone }) {
+  return (
+    <span
+      className="flex items-center justify-center shrink-0"
+      style={{ width: 20, color: TONE[tone].fg }}
+    >
+      <Ico size={18} weight="duotone" />
+    </span>
+  );
+}
+
+/** A status chip — the app's own success/danger tokens, since the DS Pill has
+ *  no success tone and these need green for "held whole". */
+function StatusPill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+  const t = TONE[tone];
+  return (
+    <span
+      className="type-caption"
+      style={{
+        padding: "3px 10px",
+        borderRadius: 999,
+        background: t.bg,
+        color: t.fg,
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** A section wrapper: heading, then a single bordered card holding the rows. */
+function EvidenceCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <span className="type-body font-medium" style={{ color: "var(--ds-text-primary)" }}>
+        {title}
+      </span>
+      <div
+        className="flex flex-col"
+        style={{
+          borderRadius: 12,
+          border: "1px solid var(--border-default)",
+          overflow: "hidden",
+          background: "var(--surface-base)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** One icon · label (+ hint) · trailing-node row, with a divider unless last. */
+function EvidenceRow({
+  icon,
+  tone,
+  label,
+  hint,
+  trailing,
+  last,
+  highlight,
+}: {
+  icon: Icon;
+  tone: Tone;
+  label: React.ReactNode;
+  hint?: string;
+  trailing: React.ReactNode;
+  last?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center"
+      style={{
+        gap: 12,
+        padding: "12px 14px",
+        borderBottom: last ? undefined : "1px solid var(--border-light)",
+        background: highlight ? "var(--color-iris-50)" : undefined,
+      }}
+    >
+      <IconTile icon={icon} tone={tone} />
+      <span className="flex flex-col min-w-0" style={{ gap: 1 }}>
+        <span
+          className={highlight ? "type-body font-semibold" : "type-body"}
+          style={{ color: "var(--ds-text-primary)" }}
+        >
+          {label}
+        </span>
+        {hint && (
+          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+            {hint}
+          </span>
+        )}
+      </span>
+      <span className="flex items-center" style={{ marginLeft: "auto", paddingLeft: 12 }}>
+        {trailing}
+      </span>
+    </div>
+  );
+}
+
+/** Pick a cost-row glyph from the label — keeps the data free of UI concerns. */
+function costIcon(label: string): { icon: Icon; tone: Tone } {
+  const l = label.toLowerCase();
+  if (l.includes("net")) return { icon: CheckCircle, tone: "iris" };
+  if (l.includes("overtime")) return { icon: Clock, tone: "iris" };
+  if (l.includes("risk")) return { icon: ShieldCheck, tone: "iris" };
+  if (l.includes("downgrade")) return { icon: WarningCircle, tone: "red" };
+  return { icon: ArrowsLeftRight, tone: "iris" };
+}
+
+/** A schedule row's outcome, as {icon, pill tone}. */
+function scheduleTone(r: { bad?: boolean; good?: boolean }): Tone {
+  if (r.bad) return "red";
+  if (r.good) return "green";
+  return "iris";
+}
+
+function scheduleIcon(label: string): Icon {
+  if (label.startsWith("DL")) return Stack;
+  if (label.startsWith("ORD")) return CalendarBlank;
+  return ArrowsClockwise;
+}
+
 /**
  * The selected option's numbers. A tab rather than a link behind the title:
  * the breakdown is evidence for this decision, it changes as you switch
@@ -225,35 +415,55 @@ function CostBreakdown() {
   const o = OPTIONS[selectedOption];
 
   return (
-    <div className="flex flex-col" style={{ gap: 12 }}>
-      <PanelInfoGrid
-        title={`${o.title} — what it costs`}
-        rows={o.breakdown.map((r) => ({
-          label: r.label,
-          value: (
-            <span
-              style={{
-                fontWeight: r.net ? 600 : 400,
-                fontVariantNumeric: "tabular-nums",
-                color: r.bad ? "var(--text-danger)" : "var(--ds-text-primary)",
-              }}
-            >
-              {r.value}
-            </span>
-          ),
-        }))}
-      />
-      <PanelInfoGrid
-        title="Effect on the schedule"
-        rows={o.schedule.map((r) => ({
-          label: r.label,
-          value: (
-            <span style={{ color: r.bad ? "var(--text-danger)" : "var(--ds-text-primary)" }}>
-              {r.value}
-            </span>
-          ),
-        }))}
-      />
+    <div className="flex flex-col" style={{ gap: 16 }}>
+      <EvidenceCard title={`${o.title} — what it costs`}>
+        {o.breakdown.map((r, i) => {
+          const { icon, tone } = costIcon(r.label);
+          return (
+            <EvidenceRow
+              key={r.label}
+              icon={r.net ? CheckCircle : icon}
+              tone={r.bad ? "red" : tone}
+              label={r.label}
+              hint={r.hint}
+              highlight={r.net}
+              last={i === o.breakdown.length - 1}
+              trailing={
+                <span
+                  className={r.net ? "type-heading-sm font-semibold" : "type-body font-medium"}
+                  style={{
+                    fontSize: r.net ? 18 : undefined,
+                    color: r.bad
+                      ? "var(--text-danger)"
+                      : r.net
+                        ? "var(--color-iris-700)"
+                        : "var(--ds-text-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {r.value}
+                </span>
+              }
+            />
+          );
+        })}
+      </EvidenceCard>
+
+      <EvidenceCard title="Effect on the schedule">
+        {o.schedule.map((r, i) => {
+          const tone = scheduleTone(r);
+          return (
+            <EvidenceRow
+              key={r.label}
+              icon={scheduleIcon(r.label)}
+              tone={r.bad ? "red" : r.good ? "green" : "iris"}
+              label={r.label}
+              last={i === o.schedule.length - 1}
+              trailing={<StatusPill tone={tone}>{r.value}</StatusPill>}
+            />
+          );
+        })}
+      </EvidenceCard>
     </div>
   );
 }
@@ -526,37 +736,136 @@ export default function ActionDeckModal({
             />
 
             {tab === "rate" && (
-              <div className="flex flex-col" style={{ gap: 12 }}>
-                <div className="flex items-baseline justify-between" style={{ gap: 12 }}>
+              <div
+                className="flex flex-col"
+                style={{
+                  gap: 12,
+                  borderRadius: 12,
+                  border: "1px solid var(--border-default)",
+                  background: "var(--surface-base)",
+                  padding: 16,
+                }}
+              >
+                <div className="flex items-start justify-between flex-wrap" style={{ gap: 12 }}>
                   <span className="type-body font-medium" style={{ color: "var(--ds-text-primary)" }}>
                     Rate — achieved vs plan
                   </span>
-                  <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-                    shortfall since {RUN.deviationAt}
+                  <StatusPill tone="red">Shortfall since {RUN.deviationAt}</StatusPill>
+                </div>
+
+                {/* Legend up top — the chart labels the lines at their right
+                    edge, but the reader shouldn't have to scan there first to
+                    learn which is which. */}
+                <div className="flex items-center flex-wrap" style={{ gap: 16 }}>
+                  <span className="flex items-center type-caption" style={{ gap: 6, color: "var(--ds-text-secondary)" }}>
+                    <span
+                      style={{
+                        width: 14,
+                        height: 3,
+                        borderRadius: 2,
+                        background: "var(--run-actual-line)",
+                      }}
+                    />
+                    Achieved rate
+                  </span>
+                  <span className="flex items-center type-caption" style={{ gap: 6, color: "var(--ds-text-secondary)" }}>
+                    <span
+                      style={{
+                        width: 14,
+                        height: 0,
+                        borderTop: "2px dashed var(--color-iris-300)",
+                      }}
+                    />
+                    Plan {CONSTRAINT_LINE.standard} yd/hr
                   </span>
                 </div>
+
                 <RateChart />
-                <p className="type-caption" style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}>
-                  The gap opens steadily rather than dropping off a cliff — which is why the alert
-                  band caught it at {RUN.deviationAt}{" "}
-                  and a walk of the floor wouldn&apos;t have.
+
+                <p
+                  className="type-caption flex items-start"
+                  style={{
+                    gap: 8,
+                    color: "var(--ds-text-secondary)",
+                    lineHeight: 1.5,
+                    background: "var(--color-iris-50)",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <AiStar size={16} />
+                  <span>
+                    The gap opens steadily rather than dropping off a cliff — which is why the alert
+                    band caught it at {RUN.deviationAt} and a walk of the floor wouldn&apos;t have.
+                  </span>
                 </p>
               </div>
             )}
 
             {tab === "committed" && (
-              <PanelInfoGrid
-                title="What this run owes"
-                rows={[
-                  { label: "Dye lot", value: <DrillLink kind="dyelot" id={DYE_LOT.id} /> },
-                  { label: "Style", value: RUN.style },
-                  { label: "Line", value: `${CONSTRAINT_LINE.name} · the constraint` },
-                  { label: "At risk", value: <DrillLink kind="order" id={order.id} /> },
-                  { label: "Customer", value: `${order.customer} · ${order.city}` },
-                  { label: "Promised", value: `${order.promised} · fixed install` },
-                  { label: "Also on this lot", value: <DrillLink kind="order" id="ORD-77412" /> },
-                ]}
-              />
+              <EvidenceCard title="What this run owes">
+                <EvidenceRow
+                  icon={Stack}
+                  tone="iris"
+                  label="Dye lot"
+                  last={false}
+                  trailing={<DrillLink kind="dyelot" id={DYE_LOT.id} />}
+                />
+                <EvidenceRow
+                  icon={Swatches}
+                  tone="blue"
+                  label="Style"
+                  trailing={
+                    <span className="type-body font-medium" style={{ color: "var(--ds-text-primary)" }}>
+                      {RUN.style}
+                    </span>
+                  }
+                />
+                <EvidenceRow
+                  icon={Package}
+                  tone="green"
+                  label="Line"
+                  trailing={
+                    <span className="type-body font-medium" style={{ color: "var(--ds-text-primary)" }}>
+                      {CONSTRAINT_LINE.name} · the constraint
+                    </span>
+                  }
+                />
+                <EvidenceRow
+                  icon={WarningCircle}
+                  tone="amber"
+                  label="At risk"
+                  trailing={<DrillLink kind="order" id={order.id} />}
+                />
+                <EvidenceRow
+                  icon={UsersThree}
+                  tone="iris"
+                  label="Customer"
+                  hint="Usually the distribution center we ship the final output to"
+                  trailing={
+                    <span className="type-body font-medium" style={{ color: "var(--ds-text-primary)" }}>
+                      {order.customer} · {order.city}
+                    </span>
+                  }
+                />
+                <EvidenceRow
+                  icon={CalendarBlank}
+                  tone="red"
+                  label="Promised"
+                  trailing={
+                    <span className="type-body font-medium" style={{ color: "var(--ds-text-primary)" }}>
+                      {order.promised} · fixed install
+                    </span>
+                  }
+                />
+                <EvidenceRow
+                  icon={Buildings}
+                  tone="teal"
+                  label="Also on this lot"
+                  last
+                  trailing={<DrillLink kind="order" id="ORD-77412" />}
+                />
+              </EvidenceCard>
             )}
 
             {tab === "breakdown" && <CostBreakdown />}
@@ -584,7 +893,10 @@ export default function ActionDeckModal({
 
             {tab === "payload" && (
               <div className="flex flex-col" style={{ gap: 10 }}>
-                <PanelInfoGrid title="What Rowan sends" rows={WORK_ORDER_PAYLOAD} />
+                <PanelInfoGrid
+                  title="What Rowan sends"
+                  rows={staticPayload(CONTEXT_OPTIONS[0].label)}
+                />
                 <p
                   className="type-caption"
                   style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
