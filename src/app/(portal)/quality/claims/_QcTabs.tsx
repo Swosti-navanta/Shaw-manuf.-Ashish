@@ -4,10 +4,8 @@ import { useState } from "react";
 import { AiStar, Button, Chip, Tabs } from "@navanta-ai/design-system";
 import { ArrowRight, CaretDown } from "@phosphor-icons/react";
 import DrillLink from "@/components/ui/DrillLink";
-import { TRACE_CHAIN, TRACE_ROWS, TRACE_TOTAL } from "@/types/quality";
+import { TRACE_CHAIN } from "@/types/quality";
 import { RuleBand } from "./_ClaimsInsight";
-
-const usd = (n: number) => `$${n.toLocaleString()}`;
 
 /* ── Data ───────────────────────────────────────────────────────────────────
  *
@@ -750,82 +748,6 @@ function BatchGenealogy() {
         </div>
       </div>
 
-      <div className="flex flex-col" style={{ gap: 8 }}>
-        <span
-          className="type-caption"
-          style={{
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: "var(--ds-text-placeholder, var(--text-muted))",
-          }}
-        >
-          The same signature, three times
-        </span>
-        <div
-          style={{
-            borderRadius: 10,
-            border: "1px solid var(--border-default)",
-            overflow: "hidden",
-          }}
-        >
-          {TRACE_ROWS.map((row, i) => (
-            <div
-              key={row.claim}
-              className="flex items-center justify-between"
-              style={{
-                gap: 12,
-                padding: "10px 14px",
-                borderBottom:
-                  i < TRACE_ROWS.length - 1 ? "1px solid var(--border-light)" : undefined,
-                background: row.current ? "var(--color-iris-50)" : undefined,
-              }}
-            >
-              <span className="type-body inline-flex items-center" style={{ gap: 6 }}>
-                <DrillLink kind="claim" id={row.claim}>
-                  {row.claim}
-                </DrillLink>
-                <span style={{ color: "var(--ds-text-secondary)" }}>· {row.shade}</span>
-              </span>
-              <span className="inline-flex items-center" style={{ gap: 10 }}>
-                <span
-                  className="type-body"
-                  style={{
-                    color: row.current ? "var(--ds-text-primary)" : "var(--ds-text-secondary)",
-                    fontWeight: row.current ? 500 : undefined,
-                  }}
-                >
-                  {row.run} · edge
-                </span>
-                <span
-                  className="type-body"
-                  style={{
-                    color: "var(--ds-text-primary)",
-                    fontVariantNumeric: "tabular-nums",
-                    minWidth: 60,
-                    textAlign: "right",
-                  }}
-                >
-                  {usd(row.cost)}
-                </span>
-              </span>
-            </div>
-          ))}
-          <div
-            className="flex items-center justify-between"
-            style={{ gap: 12, padding: "10px 14px", background: "var(--surface-raised)" }}
-          >
-            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
-              Same run signature · 3 claims · 4 months
-            </span>
-            <span
-              className="type-body-medium"
-              style={{ color: "var(--text-danger)", fontVariantNumeric: "tabular-nums" }}
-            >
-              {usd(TRACE_TOTAL)}
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
