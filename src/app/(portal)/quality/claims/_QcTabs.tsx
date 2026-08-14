@@ -4,7 +4,10 @@ import { useState } from "react";
 import { AiStar, Button, Chip, Tabs } from "@navanta-ai/design-system";
 import { ArrowRight, CaretDown } from "@phosphor-icons/react";
 import DrillLink from "@/components/ui/DrillLink";
+import { TRACE_CHAIN, TRACE_ROWS, TRACE_TOTAL } from "@/types/quality";
 import { RuleBand } from "./_ClaimsInsight";
+
+const usd = (n: number) => `$${n.toLocaleString()}`;
 
 /* ── Data ───────────────────────────────────────────────────────────────────
  *
@@ -256,7 +259,9 @@ export default function QcTabs() {
           </div>
         )}
 
-        {/* Summary stats. */}
+        {/* Summary stats — the Claims tab carries its numbers in the genealogy
+            and claims table instead, so it skips this row. */}
+        {tab !== "claims" && (
         <div
           className="grid"
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}
@@ -289,6 +294,7 @@ export default function QcTabs() {
             </div>
           ))}
         </div>
+        )}
 
         {/* The table for the active tab. */}
         {tab === "yarn" && (
@@ -589,46 +595,236 @@ function OrderTable({ rows, total, expanded, onToggle }: TableProps<OrderRow>) {
 function ClaimsTable() {
   return (
     <div className="flex flex-col" style={{ gap: 14 }}>
-      <Shell head={["Claim", "Traced to", "Root cause", "Stage it slipped", "Cost"]}>
-        {CLAIMS.map((r) => (
-          <Row key={r.id} flag>
-            <td style={TD}>
-              <span className="flex flex-col" style={{ gap: 1 }}>
+      <BatchGenealogy />
+
+      {/* The claims themselves, in the same boxed-rows-plus-footer shape as the
+          genealogy above — one bordered container, light row dividers, and the
+          pattern summary as the closing row. */}
+      <div className="flex flex-col" style={{ gap: 8 }}>
+        <span
+          className="type-caption"
+          style={{
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ds-text-placeholder, var(--text-muted))",
+          }}
+        >
+          The claims behind it
+        </span>
+        <div
+          style={{ borderRadius: 10, border: "1px solid var(--border-default)", overflow: "hidden" }}
+        >
+          {CLAIMS.map((r, i) => (
+            <div
+              key={r.id}
+              className="flex items-center"
+              style={{
+                gap: 12,
+                padding: "10px 14px",
+                borderBottom: i < CLAIMS.length - 1 ? "1px solid var(--border-light)" : undefined,
+              }}
+            >
+              {/* Claim */}
+              <span className="flex flex-col flex-1 min-w-0" style={{ gap: 1 }}>
                 <DrillLink kind="claim" id={r.id}>
                   {r.id}
                 </DrillLink>
-                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{r.sub}</span>
+                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                  {r.sub}
+                </span>
               </span>
-            </td>
-            <td style={TD}><IdCell id={r.traced} sub={r.tracedSub} link /></td>
-            <td style={TD}><span className="type-body" style={{ color: "var(--ds-text-primary)" }}>{r.cause}</span></td>
-            <td style={TD}><Pill tone="bad">{r.stage}</Pill></td>
-            <td style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums" }}><Res tone="bad">{r.cost}</Res></td>
-          </Row>
-        ))}
-      </Shell>
+              {/* Traced to */}
+              <span className="flex flex-col shrink-0" style={{ gap: 1, width: 128 }}>
+                <DrillLink kind="dyelot" id={r.traced}>
+                  {r.traced}
+                </DrillLink>
+                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                  {r.tracedSub}
+                </span>
+              </span>
+              {/* Root cause */}
+              <span
+                className="type-body shrink-0"
+                style={{ width: 240, color: "var(--ds-text-primary)" }}
+              >
+                {r.cause}
+              </span>
+              {/* Stage it slipped */}
+              <span className="shrink-0" style={{ width: 96 }}>
+                <Pill tone="bad">{r.stage}</Pill>
+              </span>
+              {/* Cost */}
+              <span
+                className="shrink-0"
+                style={{ width: 72, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+              >
+                <Res tone="bad">{r.cost}</Res>
+              </span>
+            </div>
+          ))}
 
-      {/* The pattern line — same cause, three claims. */}
-      <div
-        className="flex items-center justify-between flex-wrap"
-        style={{
-          gap: 12,
-          padding: "12px 14px",
-          borderRadius: 10,
-          background: "var(--surface-raised)",
-          border: "1px solid var(--border-default)",
-        }}
-      >
-        <span className="type-body" style={{ color: "var(--ds-text-secondary)" }}>
-          <strong style={{ color: "var(--ds-text-primary)" }}>Same cause, three claims, four months.</strong>{" "}
-          All split shade-critical lots — one rule would have prevented every one.
-        </span>
+          {/* Pattern summary — the closing row. */}
+          <div
+            className="flex items-center justify-between"
+            style={{ gap: 12, padding: "10px 14px", background: "var(--surface-raised)" }}
+          >
+            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
+              Same cause · 3 claims · 4 months — one rule would have prevented every one
+            </span>
+            <span
+              className="type-body-medium"
+              style={{ color: "var(--text-danger)", fontVariantNumeric: "tabular-nums" }}
+            >
+              $41,200
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Batch genealogy ──────────────────────────────────────────────────────
+ *
+ * The chain from a field claim back to the run that produced it, and the two
+ * earlier claims that share its signature. Sits inside the Claims tab because
+ * it is the *evidence* the rule above rests on — the pattern that makes a
+ * one-off read as a process, without leaving the surface.
+ */
+function BatchGenealogy() {
+  return (
+    <div className="flex flex-col" style={{ gap: 14 }}>
+      <div className="flex flex-col" style={{ gap: 10 }}>
         <span
-          className="type-body-medium"
-          style={{ color: "var(--text-danger)", fontSize: 18, fontVariantNumeric: "tabular-nums" }}
+          className="type-caption"
+          style={{
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ds-text-placeholder, var(--text-muted))",
+          }}
         >
-          $41,200
+          One chain · claim → roll → batch → lot → run
         </span>
+        <div className="flex items-center flex-wrap" style={{ gap: 6 }}>
+          {TRACE_CHAIN.map((node, i) => (
+            <span key={node.label} className="inline-flex items-center" style={{ gap: 6 }}>
+              <span
+                className="flex flex-col"
+                style={{
+                  gap: 1,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  background: node.flagged
+                    ? "var(--surface-warning, #FEF0C7)"
+                    : "var(--surface-raised)",
+                  border: `1px solid ${
+                    node.flagged ? "var(--text-warning, #F79009)" : "var(--border-default)"
+                  }`,
+                }}
+              >
+                <span
+                  className="type-caption"
+                  style={{
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "var(--ds-text-placeholder, var(--text-muted))",
+                  }}
+                >
+                  {node.label}
+                </span>
+                <span
+                  className="type-body"
+                  style={{ color: "var(--ds-text-primary)", fontWeight: 500 }}
+                >
+                  {node.value}
+                </span>
+                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                  {node.detail}
+                </span>
+              </span>
+              {i < TRACE_CHAIN.length - 1 && (
+                <ArrowRight size={12} weight="bold" color="var(--border-strong)" />
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col" style={{ gap: 8 }}>
+        <span
+          className="type-caption"
+          style={{
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--ds-text-placeholder, var(--text-muted))",
+          }}
+        >
+          The same signature, three times
+        </span>
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid var(--border-default)",
+            overflow: "hidden",
+          }}
+        >
+          {TRACE_ROWS.map((row, i) => (
+            <div
+              key={row.claim}
+              className="flex items-center justify-between"
+              style={{
+                gap: 12,
+                padding: "10px 14px",
+                borderBottom:
+                  i < TRACE_ROWS.length - 1 ? "1px solid var(--border-light)" : undefined,
+                background: row.current ? "var(--color-iris-50)" : undefined,
+              }}
+            >
+              <span className="type-body inline-flex items-center" style={{ gap: 6 }}>
+                <DrillLink kind="claim" id={row.claim}>
+                  {row.claim}
+                </DrillLink>
+                <span style={{ color: "var(--ds-text-secondary)" }}>· {row.shade}</span>
+              </span>
+              <span className="inline-flex items-center" style={{ gap: 10 }}>
+                <span
+                  className="type-body"
+                  style={{
+                    color: row.current ? "var(--ds-text-primary)" : "var(--ds-text-secondary)",
+                    fontWeight: row.current ? 500 : undefined,
+                  }}
+                >
+                  {row.run} · edge
+                </span>
+                <span
+                  className="type-body"
+                  style={{
+                    color: "var(--ds-text-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                    minWidth: 60,
+                    textAlign: "right",
+                  }}
+                >
+                  {usd(row.cost)}
+                </span>
+              </span>
+            </div>
+          ))}
+          <div
+            className="flex items-center justify-between"
+            style={{ gap: 12, padding: "10px 14px", background: "var(--surface-raised)" }}
+          >
+            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
+              Same run signature · 3 claims · 4 months
+            </span>
+            <span
+              className="type-body-medium"
+              style={{ color: "var(--text-danger)", fontVariantNumeric: "tabular-nums" }}
+            >
+              {usd(TRACE_TOTAL)}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
