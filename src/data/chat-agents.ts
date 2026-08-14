@@ -7,8 +7,10 @@
 //
 // The agent named in the header is the one that owns the queue on that page:
 // Sawyer schedules, Rowan runs the shift, Sable sizes lots, Wren judges
-// quality. The roll-up surfaces have no single owner, so they get the
-// cross-agent assistant, which is honest about speaking for all four.
+// quality. The roll-ups get their own: Sage reads across all four for an
+// executive, and Iris owns calibration — how the plants compare, and where each
+// dial is set. Performance and Thresholds are two views of Iris's question, so
+// they share her rather than being handed to a generic assistant.
 
 export interface ChatPrompt {
   /** The chip's label — phrased as the question a person would actually ask. */
@@ -27,11 +29,14 @@ export interface PageAgent {
   prompts: ReadonlyArray<ChatPrompt>;
 }
 
-/** The cross-agent assistant, for the roll-up surfaces no single agent owns. */
-const SHAW: PageAgent = {
-  agent: "Shaw Assistant",
+/**
+ * Sage reads the plant the way an executive does — across every agent, in
+ * money and commitments rather than in runs and lots.
+ */
+const SAGE: PageAgent = {
+  agent: "Sage",
   role: "Across every agent",
-  intro: "I can read across Sawyer, Rowan, Sable and Wren. What do you want to know?",
+  intro: "I read across Sawyer, Rowan, Sable and Wren. What do you want to know?",
   prompts: [
     {
       label: "What is costing us the most today?",
@@ -74,6 +79,63 @@ const SHAW: PageAgent = {
           { label: "On the floor", text: "$2.38m across 38,200 lin yd." },
           { label: "Why", text: "Goods stack up behind Backing 2 waiting for their slot." },
           { label: "Fix", text: "Clearing the constraint moves this more than anything else." },
+        ],
+      },
+    },
+  ],
+};
+
+/**
+ * Iris owns the calibration: how the plants compare, and where each one's
+ * limits are set too tight or too loose. Performance and Thresholds are two
+ * views of that same question — one is the result, the other is the dial.
+ */
+const IRIS: PageAgent = {
+  agent: "Iris",
+  role: "Calibration & limits",
+  intro: "I watch how the plants compare and where each dial is set. Ask me what to change.",
+  prompts: [
+    {
+      label: "Which limits are set too tight?",
+      answer: {
+        note: "Two. They interrupt people for calls the engine has never got wrong.",
+        rows: [
+          { label: "Grade a clear pass", text: "Plant 07 asks; 214 of 214 were approved as proposed." },
+          { label: "Log drift in band", text: "Plant 15 asks; every one was inside ±8% of plan." },
+          { label: "Worth", text: "Moving both to Auto returns about 40 interruptions a week." },
+        ],
+      },
+    },
+    {
+      label: "Which limits are set too loose?",
+      answer: {
+        note: "One, and it is the one that has cost money.",
+        rows: [
+          { label: "Split a dye lot", text: "Left costed rather than blocked on Plant 04." },
+          { label: "Result", text: "Three claims, $41.2k, all from split shade-critical lots." },
+          { label: "Fix", text: "Wren's rule makes it a hard constraint instead of a price." },
+        ],
+      },
+    },
+    {
+      label: "How do the plants compare?",
+      answer: {
+        note: "Dalton is the outlier, and it is a constraint problem rather than a people problem.",
+        rows: [
+          { label: "Attainment", text: "Dalton 88%, Eton 98%, Chatsworth 99%." },
+          { label: "Auto-resolved", text: "Dalton 87%, Eton 94%, Chatsworth 92%." },
+          { label: "Read", text: "Backing 2 is behind; the engine is closing more, not less." },
+        ],
+      },
+    },
+    {
+      label: "What happens if I widen a limit?",
+      answer: {
+        note: "Fewer interruptions, and a claim rate to watch afterwards.",
+        rows: [
+          { label: "Immediately", text: "Matching exceptions stop reaching a person." },
+          { label: "Watch", text: "Whether claims rise on what the engine now settles alone." },
+          { label: "Never", text: "Running the line, grading product or overruling a hold." },
         ],
       },
     },
@@ -289,10 +351,10 @@ export const PAGE_AGENTS: Record<string, PageAgent> = {
     ],
   },
 
-  "/overview": SHAW,
-  "/performance": SHAW,
-  "/thresholds": SHAW,
-  "/settings": SHAW,
+  "/overview": SAGE,
+  "/performance": IRIS,
+  "/thresholds": IRIS,
+  "/settings": SAGE,
 };
 
 /** The agent for a path — nearest matching prefix, falling back to the
@@ -301,5 +363,5 @@ export function agentForPath(pathname: string): PageAgent {
   const key = Object.keys(PAGE_AGENTS)
     .filter((k) => pathname === k || pathname.startsWith(`${k}/`))
     .sort((a, b) => b.length - a.length)[0];
-  return key ? PAGE_AGENTS[key] : SHAW;
+  return key ? PAGE_AGENTS[key] : SAGE;
 }

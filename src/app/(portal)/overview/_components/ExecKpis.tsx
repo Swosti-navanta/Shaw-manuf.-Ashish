@@ -54,13 +54,13 @@ export default function ExecKpis() {
       columns={3}
       style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}
     >
-      {/* Work in progress: capital sitting between the four stages. More is
-          not better, so being over target is the bad direction. */}
+      {/* Work in progress: capital sitting between the four stages. Left
+          neutral — WIP over target is a thing to watch, not a fault, and the
+          red is reserved for figures that are actually going wrong. */}
       <KpiBreakdownCard
         title="Work in progress"
         value={`$${(WIP.value / 1000).toFixed(2)}m`}
         subtitle={`${WIP.yards.toLocaleString()} lin yd · ${wipVsTarget() > 0 ? "+" : ""}${wipVsTarget()}% vs target`}
-        {...card(wipVsTarget() > 0)}
         {...open("/scheduling")}
       />
 

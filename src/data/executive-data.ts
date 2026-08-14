@@ -563,3 +563,91 @@ export const EXEC_TRENDS: Record<string, ReadonlyArray<number>> = {
   onTime: [95.8, 94.1, 96.2, 93.5, 94.8, 92.9, 92.2],
   autonomy: [71.4, 74.8, 79.1, 80.6, 83.9, 85.2, 87.1],
 };
+
+
+/* ─── How the plants run the engine ─────────────────────────────────────── */
+
+/**
+ * Attainment, adherence and autonomy per plant.
+ *
+ * The roll-up's real question is not "who is behind" — the plant table already
+ * answers that — but *whether the dial is set right*. A plant that escalates
+ * everything is not being careful, it is paying people to rubber-stamp; a plant
+ * that auto-resolves everything and then takes claims has been set too loose.
+ * Both readings need the same three numbers side by side.
+ */
+export interface PlantEngine {
+  plant: PlantId;
+  /** Output against plan, as a percentage. */
+  attainment: number;
+  /** How closely the floor ran the released sequence. */
+  adherence: number;
+  /** Exceptions the agents closed inside their limits. */
+  resolved: number;
+  /** Exceptions that reached a person. */
+  escalated: number;
+  /** Claims traced back to something the engine settled on its own. */
+  claimsFromAuto: number;
+}
+
+export const PLANT_ENGINE: ReadonlyArray<PlantEngine> = [
+  { plant: "p04", attainment: 88, adherence: 62, resolved: 128, escalated: 19, claimsFromAuto: 3 },
+  { plant: "p07", attainment: 98, adherence: 94, resolved: 214, escalated: 13, claimsFromAuto: 0 },
+  { plant: "p15", attainment: 99, adherence: 96, resolved: 176, escalated: 15, claimsFromAuto: 0 },
+];
+
+export const enginePct = (e: PlantEngine) =>
+  Math.round((e.resolved / (e.resolved + e.escalated)) * 1000) / 10;
+
+/**
+ * Where a plant's dial is mis-set, and which way.
+ *
+ * "Tight" is an escalation nobody ever overturned — the engine was right every
+ * time and a person was interrupted anyway. "Loose" is the opposite and the
+ * expensive one: something settled automatically that came back as a claim.
+ */
+export interface DialFinding {
+  plant: PlantId;
+  key: ThresholdCalibrationKey;
+  label: string;
+  direction: "tight" | "loose";
+  evidence: string;
+  suggestion: string;
+}
+
+export type ThresholdCalibrationKey = "grade" | "drift" | "split" | "reseq" | "report";
+
+export const DIAL_FINDINGS: ReadonlyArray<DialFinding> = [
+  {
+    plant: "p07",
+    key: "grade",
+    label: "Grade a clear pass",
+    direction: "tight",
+    evidence: "214 of 214 escalations approved exactly as proposed",
+    suggestion: "Move to Auto — nobody has changed one of these in four months",
+  },
+  {
+    plant: "p15",
+    key: "drift",
+    label: "Log drift inside the alert band",
+    direction: "tight",
+    evidence: "Every escalation was already inside ±8% of plan",
+    suggestion: "Move to Auto — the band is what makes it not worth reading",
+  },
+  {
+    plant: "p04",
+    key: "split",
+    label: "Split a dye lot to hold a date",
+    direction: "loose",
+    evidence: "3 claims · $41.2k, all traced to split shade-critical lots",
+    suggestion: "Make it a hard rule rather than a costed option",
+  },
+  {
+    plant: "p04",
+    key: "report",
+    label: "Publish shift & downtime reports",
+    direction: "tight",
+    evidence: "No report has been edited before sending since March",
+    suggestion: "Move to Auto — the review adds a step and no change",
+  },
+];
