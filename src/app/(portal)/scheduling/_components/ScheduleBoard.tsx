@@ -764,9 +764,12 @@ export default function ScheduleBoard() {
                 ))}
                 {TICKS.map((hours, i) => {
                   const isLast = i === TICKS.length - 1;
-                  // End labels hug their tick instead of centring on it, or
-                  // half of each falls outside the track.
-                  const shift = i === 0 ? "none" : isLast ? "translateX(-100%)" : "translateX(-50%)";
+                  // Centred over its own tick. The first label can afford this
+                  // now that the track is inset: half a clock reading is about
+                  // 14px, which fits inside TRACK_INSET, so it no longer needs
+                  // to hug the tick and let the rule cut through its first
+                  // digit. The last one still hugs — nothing sits right of it.
+                  const shift = isLast ? "translateX(-100%)" : "translateX(-50%)";
                   return (
                     <span
                       key={hours}
