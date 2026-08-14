@@ -1254,7 +1254,12 @@ function Gridlines() {
             top: 0,
             bottom: 0,
             width: 1,
-            background: h % 6 === 0 ? "var(--border-light)" : "transparent",
+            // Hour zero is left bare. A rule there lands inside the track's
+            // inset, where it reads as a stray border a few pixels off the
+            // gutter rather than as the start of the day — and the gap stops
+            // looking like padding at all. The lane's own left edge already
+            // marks where the board begins.
+            background: h > 0 && h % 6 === 0 ? "var(--border-light)" : "transparent",
             pointerEvents: "none",
           }}
         />
