@@ -156,11 +156,12 @@ const AXIS_GAP = 12;
  *  (12 Aug 2026) so the timeline reads as real dates, not just "Tomorrow". */
 const DAY_DATE = ["12 Aug", "13 Aug", "14 Aug"];
 
-/** Breathing room before hour zero, so a run starting at 06:00 doesn't sit on
- *  the gutter's border. Applied as padding on the lane and on the axis — both
- *  then resolve their percentages against the same inset box, so the bars stay
- *  under their own gridlines. */
-const TRACK_INSET = 14;
+/** Breathing room before hour zero. Zero by choice: because a bar's x-position
+ *  *is* its time, insetting the track has to move the axis by the same amount,
+ *  which reads as the whole timeline sliding right rather than as padding. The
+ *  mechanism stays (lane and axis share one inset box, so bars keep sitting
+ *  under their own gridlines) — only the value is off. */
+const TRACK_INSET = 0;
 
 /** Maintenance reads in slate blue, not the amber a changeover uses: a belt
  *  being worked on and a belt changing colour are different reasons it isn't
@@ -781,7 +782,6 @@ export default function ScheduleBoard() {
                     </span>
                   );
                 })}
-                <NowCap />
               </div>
               </div>
             </div>
@@ -931,35 +931,6 @@ export default function ScheduleBoard() {
               </Fragment>
               );
             })}
-
-            {/* The now marker, drawn once across the whole body so the division
-                bars don't break it into segments. Above the lanes and the bars,
-                the same as when it lived inside each lane. */}
-            <div
-              aria-hidden="true"
-              className="absolute pointer-events-none"
-              // Starts just under the "now" pill in the axis, so the line and
-              // its label read as one mark rather than two.
-              style={{
-                left: TRACK_INSET,
-                right: 0,
-                top: AXIS_H - (TICK_ROW_H + 4),
-                bottom: 0,
-                zIndex: 5,
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  left: pct(NOW_HOURS),
-                  top: 0,
-                  bottom: 0,
-                  width: 1.5,
-                  background: "var(--run-actual-line)",
-                  opacity: 0.7,
-                }}
-              />
-            </div>
 
             {/* The time readout rides above the bar being dragged. It lives
                 here rather than inside the bar because a lane clips its own
@@ -1401,32 +1372,6 @@ function DayBreaks() {
         />
       ))}
     </>
-  );
-}
-
-/** The "now" marker's label, sitting in the axis strip above the lanes. */
-function NowCap() {
-  return (
-    <span
-      style={{
-        position: "absolute",
-        left: pct(NOW_HOURS),
-        // Clear of the tick row: the pill used to sit on top of the clock
-        // labels, hiding the one reading it exists to locate.
-        bottom: TICK_ROW_H + 4,
-        transform: "translateX(-50%)",
-        fontSize: 10,
-        fontWeight: 600,
-        letterSpacing: "0.02em",
-        color: "#FFFFFF",
-        background: "var(--run-actual-line)",
-        borderRadius: 4,
-        padding: "1px 5px",
-        whiteSpace: "nowrap",
-      }}
-    >
-      now {clockAt(NOW_HOURS)}
-    </span>
   );
 }
 
