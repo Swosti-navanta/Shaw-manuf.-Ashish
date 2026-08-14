@@ -5,7 +5,10 @@
 // Region → Branch shape the IRIS portal uses in its TopBar). Nothing here
 // gates a route — see src/types/persona.ts for that.
 
-export type DivisionId = "residential" | "commercial" | "hardsurface";
+// Every plant here is a real Shaw carpet mill. Hard surface (LVT, laminate,
+// tile) is a separate business that doesn't tuft, dye or finish carpet, and the
+// commercial/contract split isn't shown — so there is one carpet division.
+export type DivisionId = "residential";
 
 /** Sentinel for the unfiltered view. Kept as a string so it can sit in the
  *  same Select as real division ids. */
@@ -30,33 +33,11 @@ export const DIVISIONS: Record<DivisionId, Division> = {
     short: "Residential",
     product: "Tufted broadloom & carpet tile",
   },
-  commercial: {
-    id: "commercial",
-    name: "Commercial · Contract",
-    short: "Commercial",
-    product: "Contract broadloom & modular tile",
-  },
-  hardsurface: {
-    id: "hardsurface",
-    name: "Hard Surface · LVT",
-    short: "Hard Surface",
-    product: "Resilient plank & laminate",
-  },
 };
 
-export const DIVISION_ORDER: ReadonlyArray<DivisionId> = [
-  "residential",
-  "commercial",
-  "hardsurface",
-];
+export const DIVISION_ORDER: ReadonlyArray<DivisionId> = ["residential"];
 
-export type PlantId =
-  | "p04"
-  | "p07"
-  | "p12"
-  | "p15"
-  | "p21"
-  | "p33";
+export type PlantId = "p04" | "p07" | "p15";
 
 export interface Plant {
   id: PlantId;
@@ -70,16 +51,17 @@ export interface Plant {
   constraintLine: string;
 }
 
+// Real Shaw carpet mills, all in the Northwest Georgia "Carpet Capital" belt
+// where Shaw tufts, dyes and finishes carpet. (The fibre plants in Aiken, SC
+// and Andalusia, AL, and the LVT plant in Ringgold, GA, aren't carpet mills, so
+// they're not scopes here.)
 export const PLANTS: Record<PlantId, Plant> = {
-  p04: { id: "p04", code: "Plant 04", location: "Dalton, GA", division: "residential", constraintLine: "Tufting 6" },
+  p04: { id: "p04", code: "Plant 04", location: "Dalton, GA", division: "residential", constraintLine: "Backing 2" },
   p07: { id: "p07", code: "Plant 07", location: "Eton, GA", division: "residential", constraintLine: "Backing 1" },
-  p12: { id: "p12", code: "Plant 12", location: "Aiken, SC", division: "commercial", constraintLine: "Backing 2" },
-  p15: { id: "p15", code: "Plant 15", location: "Andalusia, AL", division: "commercial", constraintLine: "Finishing 2" },
-  p21: { id: "p21", code: "Plant 21", location: "Cartersville, GA", division: "hardsurface", constraintLine: "Press 3" },
-  p33: { id: "p33", code: "Plant 33", location: "Ringgold, GA", division: "hardsurface", constraintLine: "Coating 1" },
+  p15: { id: "p15", code: "Plant 15", location: "Chatsworth, GA", division: "residential", constraintLine: "Finishing 2" },
 };
 
-export const PLANT_ORDER: ReadonlyArray<PlantId> = ["p04", "p07", "p12", "p15", "p21", "p33"];
+export const PLANT_ORDER: ReadonlyArray<PlantId> = ["p04", "p07", "p15"];
 
 /** "Plant 12 · Aiken, SC" — the label used in the TopBar and page eyebrows. */
 export function plantLabel(id: PlantId): string {
@@ -119,12 +101,7 @@ export function plantMatchesDivision(plant: PlantId, division: DivisionFilter): 
 }
 
 export function isDivisionFilter(value: string | undefined): value is DivisionFilter {
-  return (
-    value === ALL_DIVISIONS ||
-    value === "residential" ||
-    value === "commercial" ||
-    value === "hardsurface"
-  );
+  return value === ALL_DIVISIONS || value === "residential";
 }
 
 export function isPlantId(value: string | undefined): value is PlantId {

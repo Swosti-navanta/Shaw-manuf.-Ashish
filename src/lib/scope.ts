@@ -17,10 +17,10 @@ const ONE_WEEK_SECONDS = 60 * 60 * 24 * 7;
 
 export const SCOPE_CHANGE_EVENT = "shaw:scope-change";
 
-/** Default landing scope — Plant 12 Aiken is the plant the demo narrative
+/** Default landing scope — Plant 04 Dalton is the plant the demo narrative
  *  runs on (Backing 2, dye lot DL-4471). */
 export const DEFAULT_DIVISION: DivisionFilter = ALL_DIVISIONS;
-export const DEFAULT_PLANT: PlantId = "p12";
+export const DEFAULT_PLANT: PlantId = "p04";
 
 function readCookie(name: string): string | null {
   if (typeof document === "undefined") return null;

@@ -1,21 +1,26 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { CalendarBlank, PencilSimple } from "@phosphor-icons/react";
+import { CalendarBlank, MagnifyingGlass, PencilSimple } from "@phosphor-icons/react";
 import {
   AiStar,
   Button,
   DataTable,
   EmptyState,
+  Input,
   TableShell,
   type DataTableColumn,
   type DataTableSortState,
 } from "@navanta-ai/design-system";
 import { useSchedule } from "@/context/ScheduleContext";
-import { BACKLOG } from "@/data/schedule-data";
+import { BACKLOG, RUNS, STATIC_BELTS, STATIC_LANE_RUNS } from "@/data/schedule-data";
 import { BELTS, type BacklogItem } from "@/types/schedule";
 import DrillLink from "@/components/ui/DrillLink";
 import RunDeckModal from "./RunDeckModal";
+import ScheduleBoard from "./ScheduleBoard";
+import BoardControls from "./BoardControls";
+
+type View = "board" | "table";
 
 const beltName = (id: string) => BELTS.find((b) => b.id === id)?.name ?? id;
 
@@ -31,27 +36,38 @@ const TODAY = 12;
  *  for facts the system merely holds. */
 const AGENT_INK = "var(--color-iris-700)";
 
+/** Runs the board carries at rest — the committed sequence plus every static
+ *  lane. Placed backlog is added on top. Drives the footer count on the board
+ *  tab so it reads as "N runs on the plant", not an empty table. */
+const BOARD_BASE_RUNS =
+  Object.keys(RUNS).length +
+  STATIC_BELTS.tufting.length +
+  STATIC_BELTS.finishing.length +
+  STATIC_LANE_RUNS.length;
+
 /** Numeric cells carry body type like every other cell — only the tabular
- *  figures differ, so the column still reads as a column. Pair with
- *  `className="type-body"` for the size. */
+ *  figures differ, so the column still reads as a column. */
 const NUM: React.CSSProperties = {
   fontVariantNumeric: "tabular-nums",
   color: "var(--ds-text-primary)",
 };
 
 /**
- * This week's schedulable runs — one flat queue, sorted by promised date so
- * the tightest commitment is at the top. Urgency lives on the row (the fixed
- * install tag, the red date) rather than in the structure.
+ * The belt plan, in one card with two views.
  *
- * Column model follows the IRIS parts-planning table: identity first, the
- * decision inputs as narrow numeric columns, then the agent's read
- * ("Sawyer Insight") in Iris-700, then the action. The insight is two short
- * structured lines, not prose — an insight column has to be scannable down
- * the column.
+ * *Board* is the resource Gantt — the plant's lanes against the clock, where a
+ * run is placed and re-sequenced. *Table* is the same week as a queue, sorted
+ * by promised date, for the reading tasks a board is bad at ("how far out is
+ * everything for Kestrel"). They are two views of one plan, so they live under
+ * one heading rather than in two cards stacked down the page.
+ *
+ * The DS `TableShell` owns the frame — title, tabs, search and footer. The
+ * search and pagination only make sense for the table, so they are wired to the
+ * table tab; the board tab borrows the footer only for an honest run count.
  */
-export default function BacklogList() {
-  const { scheduled } = useSchedule();
+export default function BeltPlan() {
+  const { scheduled, released, reRelease } = useSchedule();
+  const [view, setView] = useState<View>("board");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -64,6 +80,7 @@ export default function BacklogList() {
 
   const unplaced = BACKLOG.filter((b) => !scheduled.has(b.id)).length;
   const query = search.trim().toLowerCase();
+  const boardTotal = BOARD_BASE_RUNS + scheduled.size;
 
   const filtered = useMemo(() => {
     const rows = BACKLOG.filter((b) => {
@@ -264,63 +281,138 @@ export default function BacklogList() {
   );
 
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const isBoard = view === "board";
 
   return (
     <>
-    <TableShell
-      title={`To schedule this week · ${unplaced} unplaced`}
-      icon={CalendarBlank}
-      totalItems={filtered.length}
-      currentPage={page}
-      onPageChange={setPage}
-      pageSize={pageSize}
-      pageSizeOptions={[10, 25, 50]}
-      onPageSizeChange={(s) => {
-        setPageSize(s);
-        setPage(1);
-      }}
-      searchValue={search}
-      onSearchChange={(v) => {
-        setSearch(v);
-        setPage(1);
-      }}
-      searchPlaceholder="Search run, order or dye lot"
-      columns={columns}
-      isFiltered={query !== ""}
-      emptyState={
-        <EmptyState
-          icon={<CalendarBlank weight="duotone" style={{ width: 24, height: 24 }} />}
-          title="Every run has a slot"
-          description="Nothing is waiting on the scheduler right now."
-        />
-      }
-      noResultsState={
-        <EmptyState
-          icon={<CalendarBlank weight="duotone" style={{ width: 24, height: 24 }} />}
-          title="No matches found"
-          description="Try a different run, order or dye lot."
-        />
-      }
-    >
-      <DataTable<BacklogItem>
-        columns={columns}
-        data={pageRows}
-        rowKey={(r) => r.id}
-        sort={sort}
-        onSortChange={(next) => {
-          setSort(next);
+      <TableShell
+      customize={false}
+        title="The belt plan"
+        icon={CalendarBlank}
+        tabs={[
+          { id: "board", label: "Board" },
+          { id: "table", label: "Table", badge: unplaced },
+        ]}
+        activeTab={view}
+        onTabChange={(id) => {
+          setView(id as View);
           setPage(1);
         }}
-        rowHeight={64}
-        rowBorderColor="#F1F3F5"
-        rowStyle={(r) =>
-          scheduled.has(r.id) ? { background: "var(--surface-success)" } : undefined
+        // Search and pagination belong to the table; the board borrows the
+        // footer for a count only.
+        totalItems={isBoard ? boardTotal : filtered.length}
+        currentPage={isBoard ? 1 : page}
+        pageSize={pageSize}
+        pageSizeOptions={[10, 25, 50]}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        // Search is not TableShell's — it renders above the tabs there, and the
+        // search belongs to the table view, under its tab. It lives in the
+        // table children instead.
+        // The draft banner rides above whichever view is open once the sequence
+        // has been touched — re-releasing is a plan-level action, not a tab's.
+        header={
+          released ? undefined : (
+            <div
+              className="flex items-center"
+              style={{
+                gap: 10,
+                padding: "10px 18px",
+                borderBottom: "1px solid var(--border-light)",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  padding: "3px 8px",
+                  borderRadius: 5,
+                  background: "var(--lane-limit-bg)",
+                  color: "var(--lane-limit-ink)",
+                }}
+              >
+                Draft
+              </span>
+              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                The floor is still running the released sequence.
+              </span>
+              <Button variant="primary" size="sm" onClick={reRelease}>
+                Re-release
+              </Button>
+            </div>
+          )
         }
-      />
-    </TableShell>
-    {deck && (
-      <RunDeckModal item={deck.item} initialView={deck.view} onClose={() => setDeck(null)} />
-    )}
+        isFiltered={!isBoard && query !== ""}
+        emptyState={
+          <EmptyState
+            icon={<CalendarBlank weight="duotone" style={{ width: 24, height: 24 }} />}
+            title="Every run has a slot"
+            description="Nothing is waiting on the scheduler right now."
+          />
+        }
+        noResultsState={
+          <EmptyState
+            icon={<CalendarBlank weight="duotone" style={{ width: 24, height: 24 }} />}
+            title="No matches found"
+            description="Try a different run, order or dye lot."
+          />
+        }
+      >
+        {isBoard ? (
+          <div style={{ padding: "12px 18px 4px" }}>
+            <ScheduleBoard />
+            <BoardControls />
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-light)" }}>
+              <div style={{ maxWidth: 320 }}>
+                <Input
+                  size="md"
+                  type="search"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search run, order or dye lot"
+                  iconLeft={<MagnifyingGlass size={15} />}
+                  clearable
+                  onClear={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
+                  aria-label="Search the backlog"
+                />
+              </div>
+            </div>
+            {pageRows.length > 0 && (
+              <DataTable<BacklogItem>
+                columns={columns}
+                data={pageRows}
+                rowKey={(r) => r.id}
+                sort={sort}
+                onSortChange={(next) => {
+                  setSort(next);
+                  setPage(1);
+                }}
+                rowHeight={64}
+                rowBorderColor="#F1F3F5"
+                rowStyle={(r) =>
+                  scheduled.has(r.id) ? { background: "var(--surface-success)" } : undefined
+                }
+              />
+            )}
+          </div>
+        )}
+      </TableShell>
+      {deck && (
+        <RunDeckModal item={deck.item} initialView={deck.view} onClose={() => setDeck(null)} />
+      )}
     </>
   );
 }

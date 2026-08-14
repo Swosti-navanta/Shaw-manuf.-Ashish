@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="b" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#E6E6E6"/>
+      <stop offset="0.5" stop-color="#FBFBFB"/>
+      <stop offset="1" stop-color="#E6E6E6"/>
+    </linearGradient>
+  </defs>
+  <!-- base rim -->
+  <ellipse cx="32" cy="54" rx="20" ry="4" fill="#B8B8B8"/>
+  <!-- cone body -->
+  <path d="M25 12 H39 L52 54 H12 Z" fill="url(#b)" stroke="#E6E6E6" stroke-width="0.6"/>
+  <!-- wound yarn: diagonal cross-hatch following the flare -->
+  <g stroke="#D0D0D0" stroke-width="0.8" opacity="0.7" fill="none">
+    <path d="M24 18 L40 18"/><path d="M22 26 L42 26"/>
+    <path d="M20 34 L44 34"/><path d="M18 42 L46 42"/><path d="M15 50 L49 50"/>
+    <path d="M26 14 L48 50"/><path d="M38 14 L16 50"/>
+    <path d="M31 13 L44 52"/><path d="M33 13 L20 52"/>
+  </g>
+  <!-- top collar (the tube the yarn is wound on) -->
+  <ellipse cx="32" cy="12" rx="7" ry="2.4" fill="#B8B8B8"/>
+  <path d="M25 12 v-3 a7 2.4 0 0 0 14 0 v3" fill="#B8B8B8"/>
+  <ellipse cx="32" cy="9" rx="7" ry="2.4" fill="#B8B8B8"/>
+  <ellipse cx="32" cy="9" rx="3.4" ry="1.2" fill="#00000022"/>
+</svg>

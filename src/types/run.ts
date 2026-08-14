@@ -73,10 +73,18 @@ export interface RecoveryOption {
   recommended?: boolean;
   /** Repeats a cause that has already produced a claim. */
   risky?: boolean;
-  /** Cost breakdown rows shown in the option drawer. */
-  breakdown: ReadonlyArray<{ label: string; value: string; net?: boolean; bad?: boolean }>;
-  /** Effect on the schedule, as label → value. */
-  schedule: ReadonlyArray<{ label: string; value: string; bad?: boolean }>;
+  /** One line on why you'd pick this — shown behind the card's info icon. */
+  why: string;
+  /** Cost breakdown rows. `hint` is a one-line gloss under the label. */
+  breakdown: ReadonlyArray<{
+    label: string;
+    value: string;
+    hint?: string;
+    net?: boolean;
+    bad?: boolean;
+  }>;
+  /** Effect on the schedule. `good` marks a positive (green) outcome. */
+  schedule: ReadonlyArray<{ label: string; value: string; bad?: boolean; good?: boolean }>;
 }
 
 export interface Measurement {
@@ -131,4 +139,33 @@ export interface LineState {
   constraint?: boolean;
   pmWindow?: string;
   vibration?: { current: string; baseline: string };
+}
+
+/**
+ * A machine-health signal as the work-order deck reads it.
+ *
+ * The gauge is the whole point: `current` against `threshold` on a `0..scaleMax`
+ * scale is a glance, where "4.2 vs a 4.0 limit" is arithmetic. The numeric
+ * fields drive the bar; the display strings carry the unit so the readout and
+ * the axis can't disagree about it.
+ */
+export interface MachineSignal {
+  asset: string;
+  /** Where on the asset, e.g. "motor bearing, drive side". */
+  component: string;
+  signalType: string;
+  unit: string;
+  current: number;
+  /** The plant's alert limit — the line the reading just crossed. */
+  threshold: number;
+  /** Full-scale end of the gauge. */
+  scaleMax: number;
+  currentDisplay: string;
+  thresholdDisplay: string;
+  firstDetected: string;
+  trend: string;
+  pmScheduled: string;
+  lastPm: string;
+  /** True once the reading is past the limit — colours the gauge. */
+  overThreshold: boolean;
 }

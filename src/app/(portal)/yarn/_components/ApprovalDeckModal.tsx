@@ -12,6 +12,7 @@ import {
   type ApprovalRow,
   type GenealogyNode,
 } from "@/types/yarn";
+import YarnCone from "@/components/ui/YarnCone";
 import DrillLink from "@/components/ui/DrillLink";
 import CreelSequence from "./CreelSequence";
 
@@ -88,9 +89,14 @@ export default function ApprovalDeckModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex items-start justify-between shrink-0"
-          style={{ gap: 16, padding: "16px 20px", borderBottom: "1px solid var(--border-default)" }}
+          className="flex items-start shrink-0"
+          style={{ gap: 12, padding: "16px 20px", borderBottom: "1px solid var(--border-default)" }}
         >
+          {/* The lot's cone, tinted — the same mark the board uses, so a lot
+              looks like the same object wherever it turns up. */}
+          <span className="shrink-0" style={{ paddingTop: 2 }}>
+            <YarnCone colour={approval.swatch.colour} height={34} />
+          </span>
           <div className="flex flex-col min-w-0" style={{ gap: 6 }}>
             <span style={{ fontSize: 18, fontWeight: 600, color: "var(--ds-text-primary)" }}>
               {approval.title}
@@ -104,7 +110,13 @@ export default function ApprovalDeckModal({
               </span>
             </span>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close"
+            style={{ marginLeft: "auto" }}
+          >
             <X size={16} weight="bold" />
           </Button>
         </div>
@@ -134,6 +146,11 @@ export default function ApprovalDeckModal({
                   {approval.escalation}
                 </p>
               </div>
+
+              {/* The figures the signature actually commits — read before the
+                  recommendation, because "how much am I committing" is the
+                  question a person asks first. */}
+              <DeckKpis approval={approval} />
 
               {state ? (
                 <SettledBand
@@ -234,6 +251,69 @@ export default function ApprovalDeckModal({
   );
 }
 
+/**
+ * What a signature commits, as four figures.
+ *
+ * A person approving a lot is committing fibre, tank time and money, and the
+ * deck used to state those only in prose. Four numbers across the top answer
+ * "how much" before the recommendation asks for a decision.
+ */
+function DeckKpis({ approval }: { approval: ApprovalRow }) {
+  const dye = approval.tab === "dye" || approval.subject.kind === "dyelot";
+  const cells: Array<{ label: string; value: string; sub?: string }> = [
+    { label: "Value at stake", value: `$${approval.value.toLocaleString()}` },
+    { label: dye ? "Commits" : "Committing", value: approval.qty, sub: "of the lot" },
+    { label: "Covers", value: approval.covers },
+    {
+      label: dye ? "Built from" : "Received",
+      value: dye ? approval.yarnLot : approval.received ?? approval.grade ?? "—",
+    },
+  ];
+
+  return (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`,
+        gap: 1,
+        background: "var(--border-light)",
+        borderTop: "1px solid var(--border-light)",
+        borderBottom: "1px solid var(--border-light)",
+      }}
+    >
+      {cells.map((c) => (
+        <div
+          key={c.label}
+          className="flex flex-col"
+          style={{ gap: 2, padding: "10px 16px", background: "var(--surface-base)" }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              color: "var(--ds-text-placeholder, var(--text-muted))",
+            }}
+          >
+            {c.label}
+          </span>
+          <span
+            className="type-body-medium"
+            style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
+          >
+            {c.value}
+          </span>
+          {c.sub && (
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              {c.sub}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Bands ─────────────────────────────────────────────────────────────── */
 
 function ApproveBand({
@@ -256,9 +336,6 @@ function ApproveBand({
         </span>
         <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
           {insight.headline}
-        </span>
-        <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-          Sable never approves its own proposal — this one is always yours.
         </span>
       </div>
       <div className="flex items-center flex-wrap" style={{ gap: 8 }}>

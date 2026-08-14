@@ -1,13 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button, Progress } from "@navanta-ai/design-system";
-import { CaretLeft, CaretRight, PencilSimple, Plus, X } from "@phosphor-icons/react";
+import { Button, Input, Progress, SegmentedControl, Select } from "@navanta-ai/design-system";
+import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus, X } from "@phosphor-icons/react";
 import { useSchedule } from "@/context/ScheduleContext";
-import { BACKLOG, BOARD_HOURS, MAINTENANCE, RUNS, STATIC_BELTS } from "@/data/schedule-data";
-import { BELTS, type BacklogItem, type BeltId, type Run } from "@/types/schedule";
+import {
+  BACKLOG,
+  BOARD_HOURS,
+  MAINTENANCE,
+  ROLL_NO,
+  RUNS,
+  STATIC_BELTS,
+  STATIC_LANE_RUNS,
+  WORK_CENTRES,
+  YARN_FOR_DYE,
+} from "@/data/schedule-data";
+import { type BacklogItem, type BeltId, type Run } from "@/types/schedule";
 import DrillLink from "@/components/ui/DrillLink";
+import YarnCone from "@/components/ui/YarnCone";
 import RunDeckModal from "./RunDeckModal";
 import RunReviewModal from "./RunReviewModal";
 import {
@@ -20,19 +31,37 @@ import {
   TICKS,
   NOW_HOURS,
   clockAt,
+  dayIndex,
   layoutLane,
   pct,
   type LaneLayout,
   type PlacedRun,
 } from "./board-layout";
 
-/** Every run on the board by id, whichever belt it belongs to. */
+/** Every run on the board by id, whichever lane it belongs to. */
 const RUN_BY_ID: Record<string, Run> = {
   ...RUNS,
   ...Object.fromEntries(
-    [...STATIC_BELTS.tufting, ...STATIC_BELTS.finishing].map((r) => [r.id, r]),
+    [...STATIC_BELTS.tufting, ...STATIC_BELTS.finishing, ...STATIC_LANE_RUNS].map((r) => [r.id, r]),
   ),
 };
+
+/** One rendered lane: its work centre, its layout, and — for the interactive
+ *  lane — the proposals waiting on it. */
+interface LaneView {
+  id: string;
+  code: string;
+  descriptor: string;
+  centreName: string;
+  centreUnit: string;
+  /** True on the first lane of a work centre — carries the group heading. */
+  firstInCentre: boolean;
+  constraint: boolean;
+  /** The process belt this lane mirrors, when it is interactive. */
+  belt?: BeltId;
+  layout: LaneLayout;
+  ghosts: PlacedRun[];
+}
 
 /** A drag in progress. `slot` is where the run would land if you let go now,
  *  recomputed on every move so the insertion marker is never a guess. */
@@ -94,21 +123,51 @@ const DRAG_SLOP = 4;
 /** Pixels per hour. Fixed at the scale where a two-hour run is legible and a
  *  changeover is visible; the 48-hour window is reached by scrolling rather
  *  than by shrinking everything until nothing can be read. */
+type Zoom = 12 | 24 | 48;
+/** One fixed density for the whole board, at the scale where a two-hour run is
+ *  legible and a changeover is visible. Longer windows are reached by scrolling
+ *  rather than by shrinking everything until nothing can be read — at 48h in a
+ *  card this wide, a squeezed bar shows "Casca…" and nothing else. */
 const PX_PER_HOUR = 76;
+
+/** Where each window scrolls to — the hour it opens on, so a jump always lands
+ *  on work rather than on the tail of the board. */
+const JUMP_HOUR: Record<Zoom, number> = { 12: 0, 24: 12, 48: 24 };
+
+/** The window options, on a DS segmented control. */
+const WINDOWS = [
+  { value: "12", label: "12h" },
+  { value: "24", label: "24h" },
+  { value: "48", label: "48h" },
+];
 // Tall enough for the constraint belt's gutter, which carries the most: name,
 // the "12% slow" flag, the load bar and its figure. Sizing the row to the
 // busiest belt keeps all three the same height without cramping that one.
 const TRACK_H = 76;
-// Rows sit flush and are separated by a rule instead of a gap, so the gutter
-// and the track read as one grid rather than two lists that happen to align.
-const ROW_GAP = 0;
-const ROW_H = TRACK_H + ROW_GAP;
+/** The division bar that heads each work centre — the plant's own grouping,
+ *  drawn full width above its machines/lines. */
+const HEADER_H = 30;
+
+/** Breathing space under the timeline header, before the first work centre —
+ *  so the axis reads as its own band and doesn't crowd the lanes. */
+const AXIS_GAP = 12;
+
+/** Calendar dates for the board's three days. Pinned to the demo's shift
+ *  (12 Aug 2026) so the timeline reads as real dates, not just "Tomorrow". */
+const DAY_DATE = ["12 Aug", "13 Aug", "14 Aug"];
 
 /** Breathing room before hour zero, so a run starting at 06:00 doesn't sit on
  *  the gutter's border. Applied as padding on the lane and on the axis — both
  *  then resolve their percentages against the same inset box, so the bars stay
  *  under their own gridlines. */
-const TRACK_INSET = 8;
+const TRACK_INSET = 14;
+
+/** Maintenance reads in slate blue, not the amber a changeover uses: a belt
+ *  being worked on and a belt changing colour are different reasons it isn't
+ *  producing, and the board shouldn't spell them the same way. */
+const MAINT_HATCH = "rgba(37,99,235,.13)";
+const MAINT_BD = "rgba(37,99,235,.42)";
+const MAINT_INK = "#1D4ED8";
 
 /** Run bar height inside the lane. Shorter than the lane so a bar reads as an
  *  object sitting in a row rather than as the row itself. */
@@ -139,6 +198,32 @@ export default function ScheduleBoard() {
   const [hoverGhost, setHoverGhost] = useState<string | null>(null);
   /** The proposal opened for review rather than accepted outright. */
   const [placing, setPlacing] = useState<BacklogItem | null>(null);
+  /** Which work centre is shown, and which window the board is scrolled to.
+   *  The window is a jump, not a zoom: the density never changes, so a run at
+   *  hour 40 is drawn exactly as legibly as one at hour 2. */
+  const [zoom, setZoom] = useState<Zoom>(12);
+  const [startAt, setStartAt] = useState<number>(0);
+  const [centre, setCentre] = useState<string>("all");
+  /** Free text that dims the runs it does not match. */
+  const [query, setQuery] = useState("");
+  const pxPerHour = PX_PER_HOUR;
+
+  /** Move the viewport to an hour on the board. The density never changes, so
+   *  this scrolls rather than rescales. */
+  const scrollToHour = useCallback((hour: number) => {
+    scrollerRef.current?.scrollTo({ left: hour * PX_PER_HOUR, behavior: "smooth" });
+  }, []);
+
+  /** Times you can jump to, every six hours across the board, named by the day
+   *  they fall on so "18:00" is never ambiguous on a two-day window. */
+  const START_OPTIONS = useMemo(
+    () =>
+      Array.from({ length: Math.floor(BOARD_HOURS / 6) }, (_, i) => i * 6).map((h) => ({
+        value: String(h),
+        label: `${DAY_LABEL[dayIndex(h)] ?? ""} ${clockAt(h)}`.trim(),
+      })),
+    [],
+  );
   /** Set when a pointerup ends a real drag. The button's click fires straight
    *  afterwards, and letting it through would pop the details open every time
    *  you moved something. */
@@ -161,55 +246,95 @@ export default function ScheduleBoard() {
     return byBelt;
   }, [scheduled]);
 
-  const lanes = useMemo(() => {
-    return BELTS.map((belt) => {
-      // A dragged run carries its own start; the rest still pack in sequence
-      // behind whatever precedes them. Sorting by effective start keeps the
-      // lane in the order it is actually drawn, so a run pushed to tomorrow
-      // stops being treated as if it were still second in line.
-      const base = (beltOrders[belt.id]
-        .map((id) => RUN_BY_ID[id])
-        .filter(Boolean) as Run[])
-        .map((r) => {
-          const startAt = starts.get(r.id);
-          const hours = durations.get(r.id);
-          return startAt === undefined && hours === undefined
-            ? r
-            : { ...r, ...(startAt !== undefined && { startAt }), ...(hours !== undefined && { hours }) };
-        })
-        // Unpinned runs sort to -1 so they keep packing from the head of the
-        // belt in their existing order; a pinned one sorts to its own time.
-        // Array.sort is stable, so equal keys preserve the sequence.
-        .sort((a, b) => (a.startAt ?? -1) - (b.startAt ?? -1));
-      const runs = insertAt(base, placedFromBacklog[belt.id] ?? []);
-      const layout = layoutLane(runs);
+  const lanes = useMemo<LaneView[]>(() => {
+    const out: LaneView[] = [];
+    const centres = centre === "all" ? WORK_CENTRES : WORK_CENTRES.filter((w) => w.id === centre);
+    centres.forEach((wc) => {
+      wc.lanes.forEach((lane, li) => {
+        const common = {
+          id: lane.id,
+          code: lane.code,
+          descriptor: lane.descriptor,
+          centreName: wc.name,
+          centreUnit: wc.unit,
+          firstInCentre: li === 0,
+          constraint: Boolean(lane.constraint),
+        };
 
-      // Everything still waiting for this belt, laid into the belt's *free*
-      // time rather than at a slot inside the committed run.
-      //
-      // A proposal shown mid-sequence has to be drawn over a bar that is
-      // already there — two runs claiming one hour — or the committed bars
-      // have to shift to make room, which misrepresents the plan that the
-      // floor is actually running. Appending is the only position that is true
-      // of a run before anybody has placed it: this is when it would go if you
-      // said yes now.
-      //
-      // Same-family lots are grouped so a campaign forms and the purge between
-      // them is free, which is what Sawyer's note on each row claims.
-      const waiting = BACKLOG.filter((b) => !scheduled.has(b.id) && b.belt === belt.id)
-        .slice()
-        .sort((a, b) => a.family.localeCompare(b.family));
-      const proposed = layoutLane([...runs, ...waiting.map(backlogRun)]);
-      const ghosts = proposed.placed.filter((p) => waiting.some((b) => b.id === p.run.id));
+        if (lane.belt) {
+          // Interactive lane — mirrors a process belt's sequence in context.
+          // A dragged run carries its own start; the rest still pack behind
+          // whatever precedes them. Sorting by effective start keeps the lane
+          // in the order it is drawn, so a run pushed to tomorrow stops being
+          // treated as if it were still second in line.
+          const belt = lane.belt;
+          const base = (beltOrders[belt].map((id) => RUN_BY_ID[id]).filter(Boolean) as Run[])
+            .map((r) => {
+              const startAt = starts.get(r.id);
+              const hours = durations.get(r.id);
+              return startAt === undefined && hours === undefined
+                ? r
+                : { ...r, ...(startAt !== undefined && { startAt }), ...(hours !== undefined && { hours }) };
+            })
+            .sort((a, b) => (a.startAt ?? -1) - (b.startAt ?? -1));
+          const runs = insertAt(base, placedFromBacklog[belt] ?? []);
+          const layout = layoutLane(runs);
 
-      return { belt, layout, ghosts, waiting };
+          // Everything still waiting for this belt, laid into its *free* time.
+          // Same-family lots are grouped so a campaign forms and the purge
+          // between them is free — what Sawyer's note on each row claims.
+          const waiting = BACKLOG.filter((b) => !scheduled.has(b.id) && b.belt === belt)
+            .slice()
+            .sort((a, b) => a.family.localeCompare(b.family));
+          const proposed = layoutLane([...runs, ...waiting.map(backlogRun)]);
+          const ghosts = proposed.placed.filter((p) => waiting.some((b) => b.id === p.run.id));
+
+          out.push({ ...common, belt, layout, ghosts });
+        } else {
+          // Static display lane — carries its own runs, no drag, no proposals.
+          out.push({ ...common, layout: layoutLane(lane.runs ?? []), ghosts: [] });
+        }
+      });
     });
-  }, [beltOrders, placedFromBacklog, starts, durations, scheduled]);
+    return out;
+  }, [beltOrders, placedFromBacklog, starts, durations, scheduled, centre]);
 
-  // The manufacturing-order connector: when one order touches more than one
-  // belt, link its operations so the order's path through the plant is visible.
-  // This is what separates a production board from a generic calendar.
-  const flows = useMemo(() => buildFlows(lanes), [lanes]);
+  // Work centres, and the vertical offset of every lane once the division bars
+  // are stacked in. A header bar sits above each centre's first lane, so a
+  // lane's top is no longer index × row height — these offsets are what the
+  // drag resolve, the drag chip and the order-flow connectors measure against.
+  const groups = useMemo(() => {
+    const g: {
+      centreName: string;
+      centreUnit: string;
+      constraint: boolean;
+      laneIdx: number[];
+    }[] = [];
+    lanes.forEach((lane, i) => {
+      if (lane.firstInCentre) {
+        g.push({ centreName: lane.centreName, centreUnit: lane.centreUnit, constraint: lane.constraint, laneIdx: [i] });
+      } else {
+        g[g.length - 1].laneIdx.push(i);
+      }
+    });
+    return g.map((grp) => ({
+      ...grp,
+      avg: Math.round(
+        (grp.laneIdx.reduce((n, i) => n + lanes[i].layout.utilisation, 0) / grp.laneIdx.length) * 100,
+      ),
+    }));
+  }, [lanes]);
+
+  const laneTop = useMemo(() => {
+    const tops: number[] = [];
+    let y = AXIS_GAP;
+    lanes.forEach((lane, i) => {
+      if (lane.firstInCentre) y += HEADER_H;
+      tops[i] = y;
+      y += TRACK_H;
+    });
+    return tops;
+  }, [lanes]);
 
   /** Pointer position → the hour under it and the lane it is over. Measured
    *  off the track element, whose rect already accounts for scrollLeft. */
@@ -221,10 +346,13 @@ export default function ScheduleBoard() {
       // the same box the bars are drawn in.
       const hours =
         ((clientX - box.left - TRACK_INSET) / (box.width - TRACK_INSET)) * BOARD_HOURS;
-      const laneIndex = Math.floor((clientY - box.top - AXIS_H) / ROW_H);
-      return { hours, overBelt: lanes[laneIndex]?.belt.id ?? null };
+      // Division bars break the uniform row grid, so the lane under the pointer
+      // is found against the real offsets rather than by dividing by row height.
+      const rel = clientY - box.top - AXIS_H;
+      const laneIndex = laneTop.findIndex((top) => rel >= top && rel < top + TRACK_H);
+      return { hours, overBelt: lanes[laneIndex]?.belt ?? null };
     },
-    [lanes],
+    [lanes, laneTop],
   );
 
   /** Nudge the scroller when the cursor reaches its edge, so a run can be
@@ -333,35 +461,188 @@ export default function ScheduleBoard() {
     else select(runId);
   };
 
-  const trackWidth = BOARD_HOURS * PX_PER_HOUR;
+  /** Whether a run answers the search. Empty query matches everything, so the
+   *  board reads normally until someone actually looks for something. */
+  const matches = useCallback(
+    (run: Run) => {
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      return [run.label, run.dyeLot, run.yarn, run.order]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    },
+    [query],
+  );
+
+  const trackWidth = BOARD_HOURS * pxPerHour;
+
+  // The board's days, as spans across the clock — for the timeline header's day
+  // tier, its alternating bands, and its boundary dividers.
+  const axisDays = DAY_LABEL.slice(0, DAY_BREAKS.length + 1).map((label, d) => ({
+    label,
+    date: DAY_DATE[d] ?? "",
+    from: d === 0 ? 0 : DAY_BREAKS[d - 1],
+    to: d < DAY_BREAKS.length ? DAY_BREAKS[d] : BOARD_HOURS,
+  }));
 
   return (
     <div className="flex flex-col" style={{ gap: 8 }}>
+      {/* Board toolbar — its own band under the tabs, full-bleed to the card's
+          edges so it reads as a bar rather than as content floating above the
+          board. Negative margins undo the board's padding. */}
+      <div
+        className="flex items-center justify-between flex-wrap"
+        style={{
+          gap: 10,
+          margin: "-12px -18px 4px",
+          padding: "10px 18px",
+          borderBottom: "1px solid var(--border-light)",
+        }}
+      >
+        {/* Search at the far left, view controls at the far right: "find a run"
+            and "change the view" are different jobs and shouldn't crowd. */}
+        <span className="inline-flex" style={{ minWidth: 210, maxWidth: 280, flex: "0 1 auto" }}>
+          <Input
+            size="md"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search run, lot or order"
+            iconLeft={<MagnifyingGlass size={14} />}
+            clearable
+            onClear={() => setQuery("")}
+            aria-label="Search the board"
+          />
+        </span>
+        <span className="inline-flex items-center" style={{ gap: 8 }}>
+          <span className="inline-flex" style={{ minWidth: 150 }}>
+            <Select size="md" value={centre} onValueChange={setCentre}>
+              <Select.Trigger aria-label="Belt">
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="all">All belts</Select.Item>
+                {WORK_CENTRES.map((wc) => (
+                  <Select.Item key={wc.id} value={wc.id}>
+                    {wc.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </span>
+          <SegmentedControl
+            size="md"
+            options={WINDOWS}
+            value={String(zoom)}
+            onValueChange={(v) => {
+              const z = Number(v) as Zoom;
+              setZoom(z);
+              scrollToHour(JUMP_HOUR[z]);
+            }}
+          />
+          <span className="inline-flex" style={{ minWidth: 150 }}>
+            <Select
+              size="md"
+              value={String(startAt)}
+              onValueChange={(v) => {
+                setStartAt(Number(v));
+                scrollToHour(Number(v));
+              }}
+            >
+              <Select.Trigger aria-label="Start time">
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                {START_OPTIONS.map((o) => (
+                  <Select.Item key={o.value} value={o.value}>
+                    {o.label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </span>
+        </span>
+      </div>
+
       {/* Gutter is a fixed column outside the scroller; only the tracks move.
           A belt name that scrolls away from its own bar makes a two-day board
           unreadable the moment you look at tomorrow. */}
+      <Legend />
+
       <div className="flex">
         <div className="shrink-0" style={{ width: GUTTER }}>
+          {/* The corner where the gutter meets the timeline header. It carries
+              the day the board opens on, so the header reads as one band across
+              both columns instead of leaving an empty box beside a label that
+              is floating in the track. */}
           <div
-            style={{ height: AXIS_H, borderBottom: "1px solid var(--border-default)" }}
-          />
-          {lanes.map(({ belt, layout }, i) => (
-            <div
-              key={belt.id}
-              className="flex items-center"
-              style={{
-                height: TRACK_H,
-                borderTop: i === 0 ? "none" : "1px solid var(--border-light)",
-                borderBottom:
-                  i === lanes.length - 1 ? "1px solid var(--border-light)" : undefined,
-              }}
-            >
-              <BeltGutter
-                name={belt.name}
-                note={belt.note}
-                constraint={belt.constraint}
-                layout={layout}
-              />
+            className="flex items-end"
+            style={{ height: AXIS_H, paddingBottom: TICK_ROW_H + 2 }}
+          >
+            <span className="inline-flex items-baseline" style={{ gap: 6, whiteSpace: "nowrap" }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  color: "var(--ds-text-primary)",
+                }}
+              >
+                {DAY_LABEL[0]}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--ds-text-placeholder, var(--text-muted))" }}>
+                {DAY_DATE[0]}
+              </span>
+            </span>
+          </div>
+          {/* Breathing space below the header, matched on the track side. */}
+          <div style={{ height: AXIS_GAP }} />
+          {groups.map((g) => (
+            <div key={g.centreName}>
+              {/* Division bar — the work centre's own heading, over its lanes.
+                  Fully outlined; the gutter caps the left, the track caps the
+                  right, so the two halves read as one bounded bar. */}
+              <div
+                className="flex items-center"
+                style={{
+                  height: HEADER_H,
+                  padding: "0 12px",
+                  background: "var(--surface-raised)",
+                  border: "1px solid var(--border-default)",
+                  borderRight: "none",
+                  borderRadius: "7px 0 0 7px",
+                }}
+              >
+                <span
+                  className="truncate"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: g.constraint ? "var(--lane-limit-ink)" : "var(--ds-text-primary)",
+                  }}
+                >
+                  {g.centreName}
+                </span>
+                <span
+                  className="truncate"
+                  style={{ marginLeft: 6, fontSize: 12, color: "var(--ds-text-secondary)" }}
+                >
+                  {g.centreUnit}
+                </span>
+              </div>
+              {g.laneIdx.map((i, li) => (
+                <div
+                  key={lanes[i].id}
+                  className="flex items-center"
+                  style={{
+                    height: TRACK_H,
+                    borderTop: li === 0 ? "none" : "1px solid var(--border-light)",
+                  }}
+                >
+                  <LaneGutter lane={lanes[i]} />
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -379,118 +660,195 @@ export default function ScheduleBoard() {
             }}
             style={{ width: trackWidth, touchAction: drag ? "none" : undefined }}
           >
-            {/* Axis: days on their own row above the clock, so a day name and
-                a time can never land on the same pixel. */}
+            {/* Timeline header — a day tier over an hour tier, so a day name
+                and a clock reading never share a pixel. Alternating day bands
+                and full-height boundary rules make "which day" readable before
+                any label. */}
             <div
               className="relative"
               style={{
                 height: AXIS_H,
-                paddingLeft: TRACK_INSET,
-                borderBottom: "1px solid var(--border-default)",
+                borderBottom: "1px solid var(--border-light)",
+                background: "var(--surface-base)",
               }}
             >
-              {DAY_LABEL.slice(0, DAY_BREAKS.length + 1).map((label, d) => {
-                const from = d === 0 ? 0 : DAY_BREAKS[d - 1];
-                const to = d < DAY_BREAKS.length ? DAY_BREAKS[d] : BOARD_HOURS;
+              {/* Same inset as the lanes, so a tick sits over its own bar. */}
+              <div className="absolute" style={{ left: TRACK_INSET, right: 0, top: 0, bottom: 0 }}>
+              {/* Alternating day bands. */}
+              {axisDays.map((day, d) => (
+                <span
+                  key={`band-${day.label}`}
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: pct(day.from),
+                    width: pct(day.to - day.from),
+                    top: 0,
+                    bottom: 0,
+                    background: d % 2 === 1 ? "var(--surface-raised)" : "transparent",
+                  }}
+                />
+              ))}
+              {/* Day boundaries, full height of the header. */}
+              {DAY_BREAKS.map((h) => (
+                <span
+                  key={`axis-div-${h}`}
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: pct(h),
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    background: "var(--border-default)",
+                  }}
+                />
+              ))}
+
+              {/* Day labels — the day, then its date, at the head of each span.
+                  The first day is named in the gutter corner instead, so the
+                  two columns share one header rather than repeating it. */}
+              {axisDays.slice(1).map((day, di) => {
+                const d = di + 1;
                 return (
+                <span
+                  key={day.label}
+                  className="inline-flex items-baseline"
+                  style={{
+                    position: "absolute",
+                    left: pct(day.from),
+                    top: 8,
+                    gap: 6,
+                    paddingLeft: d === 0 ? 0 : 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   <span
-                    key={label}
                     style={{
-                      position: "absolute",
-                      left: pct(from),
-                      width: pct(to - from),
-                      top: 0,
-                      // The first day starts at the track inset, so it lines up
-                      // with 06:00 beneath it. Later days sit just clear of the
-                      // midnight rule they follow.
-                      paddingLeft: d === 0 ? 0 : 6,
-                      fontSize: 10,
-                      letterSpacing: "0.08em",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
                       textTransform: "uppercase",
-                      color: "var(--ds-text-placeholder, var(--text-muted))",
-                      borderLeft: d === 0 ? "none" : "1px solid var(--border-default)",
+                      color: d === 0 ? "var(--ds-text-primary)" : "var(--ds-text-secondary)",
                     }}
                   >
-                    {label}
+                    {day.label}
                   </span>
+                  <span style={{ fontSize: 10, color: "var(--ds-text-placeholder, var(--text-muted))" }}>
+                    {day.date}
+                  </span>
+                </span>
                 );
               })}
 
-              <div
-                className="absolute inset-x-0"
-                style={{
-                  bottom: 0,
-                  height: TICK_ROW_H,
-                  borderBottom: "1px solid var(--border-strong)",
-                }}
-              >
+              {/* Hour tier. */}
+              <div className="absolute inset-x-0" style={{ bottom: 0, height: TICK_ROW_H }}>
+                {/* Minor ticks every 3h, for a finer scale under the labels. */}
+                {GRID_HOURS.map((h) => (
+                  <span
+                    key={`minor-${h}`}
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      left: pct(h),
+                      bottom: 0,
+                      width: 1,
+                      height: h % 6 === 0 ? 6 : 3,
+                      background: h % 6 === 0 ? "var(--border-strong)" : "var(--border-default)",
+                    }}
+                  />
+                ))}
                 {TICKS.map((hours, i) => {
                   const isLast = i === TICKS.length - 1;
                   // End labels hug their tick instead of centring on it, or
                   // half of each falls outside the track.
                   const shift = i === 0 ? "none" : isLast ? "translateX(-100%)" : "translateX(-50%)";
                   return (
-                    <span key={hours}>
-                      <span
-                        style={{
-                          position: "absolute",
-                          left: pct(hours),
-                          top: 0,
-                          transform: shift,
-                          fontSize: 11,
-                          fontWeight: 500,
-                          fontVariantNumeric: "tabular-nums",
-                          color: "var(--ds-text-secondary)",
-                        }}
-                      >
-                        {clockAt(hours)}
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          position: "absolute",
-                          left: pct(hours),
-                          bottom: 0,
-                          width: 1,
-                          height: 5,
-                          background: "var(--border-strong)",
-                        }}
-                      />
+                    <span
+                      key={hours}
+                      style={{
+                        position: "absolute",
+                        left: pct(hours),
+                        top: 1,
+                        transform: shift,
+                        fontSize: 11,
+                        fontWeight: 500,
+                        fontVariantNumeric: "tabular-nums",
+                        color: "var(--ds-text-secondary)",
+                      }}
+                    >
+                      {clockAt(hours)}
                     </span>
                   );
                 })}
                 <NowCap />
               </div>
+              </div>
             </div>
 
-            {lanes.map(({ belt, layout, ghosts }, laneIndex) => (
+            {/* Breathing space below the timeline header, matched in the gutter. */}
+            <div style={{ height: AXIS_GAP }} />
+
+            {lanes.map((lane) => {
+              const { belt, layout, ghosts } = lane;
+              return (
+              <Fragment key={lane.id}>
+              {/* The division bar, matched in height to the gutter heading so
+                  the two columns read as one full-width bar over the group. */}
+              {lane.firstInCentre && (
+                <div
+                  aria-hidden="true"
+                  className="flex items-center"
+                  style={{
+                    height: HEADER_H,
+                    paddingLeft: TRACK_INSET,
+                    background: "var(--surface-raised)",
+                    // The track half of the division bar — top/bottom/right, so
+                    // with the gutter's left cap the whole thing is outlined.
+                    border: "1px solid var(--border-default)",
+                    borderLeft: "none",
+                    borderRadius: "0 7px 7px 0",
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: "var(--ds-text-secondary)", whiteSpace: "nowrap" }}>
+                    {groups.find((g) => g.centreName === lane.centreName)?.avg ?? 0}% avg
+                    {lane.constraint ? " · constraint" : ""}
+                  </span>
+                </div>
+              )}
               <div
-                key={belt.id}
                 role="group"
-                aria-label={`${belt.name} belt${belt.constraint ? ", the constraint" : ""} — ${formatHours(layout.loadHours)} of ${BOARD_HOURS}h scheduled`}
+                aria-label={`${lane.code}, ${lane.centreName}${lane.constraint ? ", the constraint" : ""} — ${formatHours(layout.loadHours)} of ${BOARD_HOURS}h scheduled`}
                 className="relative"
                 style={{
                   height: TRACK_H,
-                  paddingLeft: TRACK_INSET,
                   // Square and flush. A rounded lane pinches its own gridlines
                   // at both ends, so the hour marks stop lining up across
                   // belts — the one thing a resource Gantt has to get right.
                   overflow: "hidden",
-                  background: belt.constraint ? "#FFFDF7" : "var(--surface-base)",
-                  borderTop:
-                    laneIndex === 0 ? "none" : "1px solid var(--border-light)",
+                  background: lane.constraint ? "#FFFDF7" : "var(--surface-base)",
+                  borderTop: lane.firstInCentre ? "none" : "1px solid var(--border-light)",
                 }}
               >
+                {/* Everything on the time scale lives in here, inset from the
+                    lane's left edge. Bars are absolutely positioned, so they
+                    resolve against this box rather than the lane — which is why
+                    padding on the lane itself moved nothing. The lane keeps its
+                    own full-width background, so the row still meets the gutter. */}
+                <div
+                  className="absolute"
+                  style={{ left: TRACK_INSET, right: 0, top: 0, bottom: 0 }}
+                >
                 <Gridlines />
                 <DayBreaks />
                 <LockedWindow />
-                <Maintenance belt={belt.id} />
-                <NowLine />
+                {belt && <Maintenance belt={belt} />}
                 {ghosts.map((g) => (
                   <Ghost
                     key={g.run.id}
                     placed={g}
-                    pxWidth={g.hours * PX_PER_HOUR}
+                    process={lane.centreName}
+                    pxWidth={g.hours * pxPerHour}
                     active={hoverGhost === g.run.id}
                     onActive={(on) => setHoverGhost(on ? g.run.id : null)}
                     onOpen={() => {
@@ -511,11 +869,30 @@ export default function ScheduleBoard() {
 
                 {layout.placed.map((p) => {
                   const isDragging = Boolean(drag?.moved) && drag?.runId === p.run.id;
+                  const dim = !matches(p.run);
+                  // Only the lanes wired to a process belt take a drag, open a
+                  // details card, or split a lot. The rest display their load.
+                  if (!belt) {
+                    return (
+                      <Block
+                        key={p.run.id}
+                        placed={p}
+                        process={lane.centreName}
+                        splitLot={false}
+                        interactive={false}
+                        selected={false}
+                        dim={dim}
+                        onSelect={() => {}}
+                      />
+                    );
+                  }
                   return (
                     <Block
                       key={p.run.id}
                       placed={p}
-                      splitLot={belt.id === "backing" && split && p.run.id === "b1"}
+                      process={lane.centreName}
+                      splitLot={belt === "backing" && split && p.run.id === "b1"}
+                      dim={dim}
                       interactive
                       dragging={isDragging}
                       // While dragging, the bar renders where it would land
@@ -528,10 +905,10 @@ export default function ScheduleBoard() {
                       expanded={detail?.runId === p.run.id}
                       onResizeStep={(d) => resizeRun(p.run.id, Math.max(SNAP_HOURS, p.hours + d))}
                       onDragStart={(e) =>
-                        onPointerDown(e, p.run.id, belt.id, p.start, p.hours, "move")
+                        onPointerDown(e, p.run.id, belt, p.start, p.hours, "move")
                       }
                       onResizeStart={(e) =>
-                        onPointerDown(e, p.run.id, belt.id, p.start, p.hours, "resize")
+                        onPointerDown(e, p.run.id, belt, p.start, p.hours, "resize")
                       }
                       selected={selected === p.run.id}
                       onSelect={(el) => {
@@ -549,31 +926,52 @@ export default function ScheduleBoard() {
                     />
                   );
                 })}
+                </div>
               </div>
-            ))}
+              </Fragment>
+              );
+            })}
+
+            {/* The now marker, drawn once across the whole body so the division
+                bars don't break it into segments. Above the lanes and the bars,
+                the same as when it lived inside each lane. */}
+            <div
+              aria-hidden="true"
+              className="absolute pointer-events-none"
+              // Starts just under the "now" pill in the axis, so the line and
+              // its label read as one mark rather than two.
+              style={{
+                left: TRACK_INSET,
+                right: 0,
+                top: AXIS_H - (TICK_ROW_H + 4),
+                bottom: 0,
+                zIndex: 5,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: pct(NOW_HOURS),
+                  top: 0,
+                  bottom: 0,
+                  width: 1.5,
+                  background: "var(--run-actual-line)",
+                  opacity: 0.7,
+                }}
+              />
+            </div>
 
             {/* The time readout rides above the bar being dragged. It lives
                 here rather than inside the bar because a lane clips its own
                 overflow, and a chip that sits above the bar would be cut off
                 by the very lane it belongs to. */}
-            {drag?.moved && <DragTimeChip drag={drag} lanes={lanes} />}
+            {drag?.moved && <DragTimeChip drag={drag} lanes={lanes} laneTop={laneTop} />}
 
             {/* Details, at the track layer for the same reason as the drag
                 chip: a lane clips its own overflow, so a card anchored under a
                 bar would be sliced off by the lane it belongs to. */}
 
 
-            {/* Connectors share the track element, so their x-positions are the
-                same percentages the blocks use. */}
-            <div
-              aria-hidden="true"
-              className="absolute pointer-events-none"
-              style={{ left: 0, right: 0, top: AXIS_H, bottom: 0 }}
-            >
-              {flows.map((f) => (
-                <OrderFlow key={f.order} {...f} />
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -602,7 +1000,7 @@ export default function ScheduleBoard() {
           return lane && placed ? (
             <RunReviewModal
               placed={placed}
-              beltName={lane.belt.name}
+              beltName={`${lane.code} · ${lane.centreName}`}
               onClose={() => setReview(null)}
             />
           ) : null;
@@ -626,7 +1024,6 @@ export default function ScheduleBoard() {
         </span>
       )}
 
-      <Legend />
     </div>
   );
 }
@@ -637,57 +1034,75 @@ export default function ScheduleBoard() {
 const formatHours = (h: number) =>
   `${Number(h.toFixed(2)).toString().replace(/\.0+$/, "")}h`;
 
-function BeltGutter({
-  name,
-  note,
-  constraint,
-  layout,
-}: {
-  name: string;
-  note?: string;
-  constraint?: boolean;
-  layout: LaneLayout;
-}) {
+/**
+ * A bar's sub-line, named the way the stage names things.
+ *
+ * Tufting runs greige yarn, so it carries the yarn lot alone — no colour exists
+ * yet. Dyeing and backing carry both: the yarn it came from and the dye lot it
+ * became. Finishing carries the roll, because by then the output is a physical
+ * thing with its own number. Using one identifier everywhere would have meant
+ * showing a dye lot on a belt where dye hasn't happened.
+ */
+function runSubline(run: Run, process?: string): string {
+  const orders = run.orders ?? (run.order ? 1 : 0);
+  const count = orders ? `${orders} order${orders === 1 ? "" : "s"}` : null;
+
+  if (process === "Finishing") {
+    return [ROLL_NO[run.id] ?? run.id, count].filter(Boolean).join(" · ");
+  }
+  if (process === "Dyeing" || process === "Backing") {
+    const yarn = run.yarn ?? (run.dyeLot ? YARN_FOR_DYE[run.dyeLot] : undefined);
+    return [yarn, run.dyeLot].filter(Boolean).join(" · ") || (count ?? "");
+  }
+  // Tufting, and anything else that hasn't been dyed.
+  return [run.yarn ?? run.dyeLot, count].filter(Boolean).join(" · ");
+}
+
+function LaneGutter({ lane }: { lane: LaneView }) {
+  const { layout } = lane;
   const pctLoad = Math.round(layout.utilisation * 100);
   const tone = layout.over
     ? "var(--text-danger)"
-    : constraint
+    : lane.constraint
       ? "var(--lane-limit-ink)"
-      : "var(--ds-text-primary)";
+      : "var(--ds-text-secondary)";
 
   return (
-    <div className="flex flex-col justify-center h-full" style={{ gap: 5 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ds-text-primary)" }}>
-        {name}
-      </span>
-      {note && (
+    <div
+      className="flex flex-col justify-center h-full w-full"
+      // Fills the fixed gutter column (rather than shrinking to its own text),
+      // so the load bar is the same width in every lane. Left inset matches the
+      // division bar above, so code, descriptor and bar all align under it.
+      style={{ gap: 3, minWidth: 0, paddingLeft: 12, paddingRight: 12 }}
+      title={`${layout.loadHours.toFixed(2)}h of ${BOARD_HOURS}h, changeover included`}
+    >
+      <span className="flex items-baseline justify-between" style={{ gap: 8 }}>
         <span
           style={{
-            fontSize: 10,
-            color: "var(--lane-limit-ink)",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--ds-text-primary)",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
-          {note}
+          {lane.code}
         </span>
-      )}
-      {/* Load as a bar plus the figure. The bar makes the three belts
-          comparable at a glance down the gutter; the number is the precision
-          the bar can't carry. */}
-      <span
-        className="flex flex-col"
-        style={{ gap: 4 }}
-        title={`${layout.loadHours.toFixed(2)}h of ${BOARD_HOURS}h, changeover included`}
-      >
-        <Progress
-          value={Math.min(100, pctLoad)}
-          size="sm"
-          variant={layout.over ? "error" : constraint ? "warning" : "neutral"}
-          aria-label={`${name} load`}
-        />
-        <span style={{ fontSize: 10, color: tone, whiteSpace: "nowrap" }}>
-          {formatHours(layout.loadHours)}/{BOARD_HOURS}h · {pctLoad}%
+        <span style={{ fontSize: 11, fontWeight: 600, color: tone, fontVariantNumeric: "tabular-nums" }}>
+          {pctLoad}%
         </span>
       </span>
+      <span
+        className="truncate"
+        style={{ fontSize: 10, color: "var(--ds-text-secondary)" }}
+      >
+        {lane.descriptor}
+      </span>
+      <Progress
+        value={Math.min(100, pctLoad)}
+        size="sm"
+        variant={layout.over ? "error" : lane.constraint ? "warning" : "neutral"}
+        aria-label={`${lane.code} load`}
+      />
     </div>
   );
 }
@@ -703,6 +1118,7 @@ function BeltGutter({
  */
 function Ghost({
   placed,
+  process,
   pxWidth,
   active,
   onActive,
@@ -710,6 +1126,9 @@ function Ghost({
   onOpen,
 }: {
   placed: PlacedRun;
+  /** The work centre this lane sits in — it decides which identifier the bar
+   *  carries, since a dye lot means nothing on a belt that hasn't dyed. */
+  process?: string;
   /** Rendered width in pixels, so the actions can degrade to icons on a
    *  proposal too narrow to hold a word. */
   pxWidth: number;
@@ -719,7 +1138,7 @@ function Ghost({
   onOpen: () => void;
 }) {
   const { run, start, hours } = placed;
-  const sub = [run.dyeLot, run.order].filter(Boolean).join(" · ");
+  const sub = runSubline(run, process);
   const where = `${clockAt(start)} to ${clockAt(start + hours)}`;
   const roomForWords = pxWidth >= 132;
 
@@ -749,8 +1168,8 @@ function Ghost({
         justifyContent: "center",
         overflow: "hidden",
         whiteSpace: "nowrap",
-        padding: "0 8px 0 11px",
-        borderRadius: "0 6px 6px 0",
+        padding: "0 8px 0 33px",
+        borderRadius: 6,
         textAlign: "left",
         border: `1px dashed ${active ? "var(--color-iris-500)" : "var(--color-iris-400)"}`,
         background: active ? "var(--color-iris-100)" : "var(--color-iris-50)",
@@ -760,14 +1179,14 @@ function Ghost({
         aria-hidden="true"
         style={{
           position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 4,
-          background: run.accent,
-          opacity: 0.45,
+          left: 7,
+          top: "50%",
+          transform: "translateY(-50%)",
+          opacity: 0.55,
         }}
-      />
+      >
+        <YarnCone colour={run.accent} height={24} />
+      </span>
 
       {active ? (
         // Two actions, because a proposal invites two different questions:
@@ -945,14 +1364,13 @@ function Maintenance({ belt }: { belt: BeltId }) {
             whiteSpace: "nowrap",
             padding: "0 6px",
             borderRadius: 4,
-            border: "1px solid var(--lane-limit-bd)",
-            background:
-              "repeating-linear-gradient(45deg, rgba(158,57,0,.11), rgba(158,57,0,.11) 5px, transparent 5px, transparent 10px)",
+            border: `1px solid ${MAINT_BD}`,
+            background: `repeating-linear-gradient(45deg, ${MAINT_HATCH}, ${MAINT_HATCH} 5px, transparent 5px, transparent 10px)`,
           }}
         >
           <span
             className="truncate"
-            style={{ fontSize: 10, fontWeight: 600, color: "var(--lane-limit-ink)" }}
+            style={{ fontSize: 10, fontWeight: 600, color: MAINT_INK }}
           >
             {m.label}
           </span>
@@ -986,25 +1404,6 @@ function DayBreaks() {
   );
 }
 
-function NowLine() {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        position: "absolute",
-        left: pct(NOW_HOURS),
-        top: 0,
-        bottom: 0,
-        width: 1.5,
-        background: "var(--run-actual-line)",
-        opacity: 0.7,
-        pointerEvents: "none",
-        zIndex: 3,
-      }}
-    />
-  );
-}
-
 /** The "now" marker's label, sitting in the axis strip above the lanes. */
 function NowCap() {
   return (
@@ -1035,8 +1434,10 @@ function NowCap() {
 
 function Block({
   placed,
+  process,
   splitLot,
   interactive,
+  dim,
   dragging,
   previewStart,
   previewHours,
@@ -1049,8 +1450,11 @@ function Block({
   onSelect,
 }: {
   placed: PlacedRun;
+  process?: string;
   splitLot: boolean;
   interactive: boolean;
+  /** Faded because it doesn't answer the board's search. */
+  dim?: boolean;
   dragging?: boolean;
   previewStart?: number;
   previewHours?: number;
@@ -1093,6 +1497,8 @@ function Block({
         <>
           <Bar
             run={run}
+            process={process}
+            dim={dim}
             start={start}
             hours={hours / 2}
             label={`${run.dyeLot} · A`}
@@ -1107,6 +1513,8 @@ function Block({
           />
           <Bar
             run={run}
+            process={process}
+            dim={dim}
             start={start + hours / 2}
             hours={hours / 2}
             label={`${run.dyeLot} · B`}
@@ -1123,6 +1531,8 @@ function Block({
       ) : (
         <Bar
           run={run}
+          process={process}
+          dim={dim}
           start={start}
           hours={hours}
           interactive={interactive}
@@ -1168,6 +1578,8 @@ function Setup({ start, hours, cost }: { start: number; hours: number; cost: num
 
 function Bar({
   run,
+  process,
+  dim,
   start,
   hours,
   label,
@@ -1184,6 +1596,8 @@ function Bar({
   risky,
 }: {
   run: Run;
+  process?: string;
+  dim?: boolean;
   start: number;
   hours: number;
   label?: string;
@@ -1199,7 +1613,7 @@ function Bar({
   onSelect: (el: HTMLElement) => void;
   risky?: boolean;
 }) {
-  const sub = meta ?? [run.dyeLot, run.order].filter(Boolean).join(" · ");
+  const sub = meta ?? runSubline(run, process);
 
   const style: React.CSSProperties = {
     position: "absolute",
@@ -1211,20 +1625,22 @@ function Bar({
     flexDirection: "column",
     justifyContent: "space-between",
     overflow: "hidden",
-    padding: "8px 8px 8px 11px",
-    // Right corners only: the accent stripe is flush to the left edge, and
-    // rounding that corner would clip the one thing identifying the run.
-    borderRadius: "0 8px 8px 0",
+    padding: "8px 8px 8px 33px",
+    borderRadius: 8,
     background: "var(--surface-base)",
     border: `1px solid ${risky ? "var(--lane-limit-bd)" : "var(--border-default)"}`,
+    // A soft drop shadow at rest so each run reads as a card sitting on the
+    // board rather than a flat block painted onto it. Selection adds the ring
+    // over the shadow; a drag lifts it further off the surface.
     boxShadow: dragging
       ? `0 8px 20px rgba(24,24,27,.20), 0 0 0 2px ${
           invalid ? "var(--text-danger)" : "var(--color-iris-500)"
         }`
       : selected
-        ? "0 0 0 2px var(--color-iris-500)"
-        : "none",
+        ? "0 0 0 2px var(--color-iris-500), 0 2px 5px rgba(24,24,27,.12)"
+        : "0 1px 2px rgba(24,24,27,.10), 0 2px 5px rgba(24,24,27,.07)",
     textAlign: "left",
+    opacity: dim ? 0.28 : 1,
     // Lifted off the board while it moves, and settling with a short ease when
     // it lands. The transition is switched off during the drag itself so the
     // bar tracks the cursor exactly rather than lagging behind it.
@@ -1235,10 +1651,14 @@ function Bar({
 
   const body = (
     <>
+      {/* The run's colour as the thing it actually is — a cone of that yarn.
+          A flat strip said "this run has a colour"; the cone says which. */}
       <span
         aria-hidden="true"
-        style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: run.accent }}
-      />
+        style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)" }}
+      >
+        <YarnCone colour={run.accent} height={26} />
+      </span>
       <span
         className="truncate"
         style={{ fontSize: 11, fontWeight: 600, color: "var(--ds-text-primary)", lineHeight: 1.3 }}
@@ -1372,13 +1792,15 @@ function Bar({
 function DragTimeChip({
   drag,
   lanes,
+  laneTop,
 }: {
   drag: DragState;
-  lanes: ReadonlyArray<{ belt: { id: BeltId } }>;
+  lanes: ReadonlyArray<{ belt?: BeltId }>;
+  laneTop: ReadonlyArray<number>;
 }) {
   const run = RUN_BY_ID[drag.runId];
   if (!run) return null;
-  const laneIndex = lanes.findIndex((l) => l.belt.id === drag.belt);
+  const laneIndex = lanes.findIndex((l) => l.belt === drag.belt);
   const nominal = run.hours;
   const end = drag.previewStart + drag.previewHours;
 
@@ -1388,7 +1810,7 @@ function DragTimeChip({
       style={{
         position: "absolute",
         left: pct(drag.previewStart),
-        top: AXIS_H + laneIndex * ROW_H - 10,
+        top: AXIS_H + (laneTop[laneIndex] ?? 0) - 10,
         transform: "translateY(-100%)",
         zIndex: 8,
         whiteSpace: "nowrap",
@@ -1440,7 +1862,7 @@ function RunPopover({
 }: {
   runId: string;
   anchor: DOMRect;
-  lanes: ReadonlyArray<{ belt: { id: BeltId; name: string; constraint?: boolean }; layout: LaneLayout }>;
+  lanes: ReadonlyArray<{ code: string; centreName: string; constraint: boolean; layout: LaneLayout }>;
   index: number;
   orderLength: number;
   inSequence: boolean;
@@ -1485,7 +1907,7 @@ function RunPopover({
   const widened = hours > nominal;
 
   const rows: Array<{ k: string; v: React.ReactNode }> = [
-    { k: "Belt", v: `${lane.belt.name}${lane.belt.constraint ? " · the constraint" : ""}` },
+    { k: "Line", v: `${lane.code} · ${lane.centreName}${lane.constraint ? " · the constraint" : ""}` },
     {
       k: "Runs",
       v: `${clockAt(start)} – ${clockAt(start + hours)} · ${formatHours(hours)}`,
@@ -1507,8 +1929,16 @@ function RunPopover({
           ? `${formatHours(setupHours)} · $${setupCost.toLocaleString()}`
           : "none — same family",
     },
-    ...(run.dyeLot ? [{ k: "Dye lot", v: <DrillLink kind="dyelot" id={run.dyeLot} /> }] : []),
-    ...(run.order ? [{ k: "Order", v: <DrillLink kind="order" id={run.order} /> }] : []),
+    ...(run.yarn
+      ? [{ k: "Yarn lot", v: <DrillLink kind="yarn" id={run.yarn} /> }]
+      : run.dyeLot
+        ? [{ k: "Dye lot", v: <DrillLink kind="dyelot" id={run.dyeLot} /> }]
+        : []),
+    ...(() => {
+      const n = run.orders ?? (run.order ? 1 : 0);
+      if (n > 1) return [{ k: "Orders", v: `${n} orders` }];
+      return run.order ? [{ k: "Order", v: <DrillLink kind="order" id={run.order} /> }] : [];
+    })(),
   ];
 
   // Fixed and portalled. The track scroller sets `overflow-x: auto`, which
@@ -1619,113 +2049,6 @@ function RunPopover({
   );
 }
 
-/* ─── Order flow across belts ───────────────────────────────────────────── */
-
-interface Flow {
-  order: string;
-  fromLane: number;
-  fromHours: number;
-  toLane: number;
-  toHours: number;
-}
-
-/** One manufacturing order can touch several belts. Link its operations so the
- *  order's path through the plant is legible — the Asprova resource-chart
- *  convention, and the thing a generic calendar can't show. */
-function buildFlows(
-  lanes: ReadonlyArray<{ layout: LaneLayout }>,
-): Flow[] {
-  const byOrder = new Map<string, { lane: number; end: number; start: number }[]>();
-
-  lanes.forEach(({ layout }, lane) => {
-    layout.placed.forEach((p) => {
-      if (!p.run.order || p.run.order === "—") return;
-      const list = byOrder.get(p.run.order) ?? [];
-      list.push({ lane, end: p.start + p.hours, start: p.start });
-      byOrder.set(p.run.order, list);
-    });
-  });
-
-  const flows: Flow[] = [];
-  byOrder.forEach((ops, order) => {
-    if (ops.length < 2) return;
-    const sorted = [...ops].sort((a, b) => a.lane - b.lane);
-    for (let i = 0; i < sorted.length - 1; i++) {
-      flows.push({
-        order,
-        fromLane: sorted[i].lane,
-        fromHours: sorted[i].end,
-        toLane: sorted[i + 1].lane,
-        toHours: sorted[i + 1].start,
-      });
-    }
-  });
-  return flows;
-}
-
-/**
- * Down-and-across connector, drawn with positioned elements rather than SVG:
- * `<polyline points>` only accepts user units, so percentage x-coordinates are
- * silently dropped and nothing renders. CSS percentages track the blocks on
- * resize for free.
- */
-function OrderFlow({ fromHours, fromLane, toHours, toLane }: Flow) {
-  const y1 = fromLane * ROW_H + TRACK_H / 2;
-  const y2 = toLane * ROW_H + TRACK_H / 2;
-  const mid = (y1 + y2) / 2;
-  const dash = "1px dashed var(--color-iris-400)";
-
-  const left = Math.min(fromHours, toHours);
-  const width = Math.abs(toHours - fromHours);
-
-  return (
-    <>
-      {/* Down from the source operation */}
-      <span
-        style={{
-          position: "absolute",
-          left: pct(fromHours),
-          top: y1,
-          height: mid - y1,
-          borderLeft: dash,
-        }}
-      />
-      {/* Across to the next belt */}
-      <span
-        style={{
-          position: "absolute",
-          left: pct(left),
-          width: pct(width),
-          top: mid,
-          borderTop: dash,
-        }}
-      />
-      {/* Down into the target operation, with a cap at the handoff */}
-      <span
-        style={{
-          position: "absolute",
-          left: pct(toHours),
-          top: mid,
-          height: y2 - mid,
-          borderLeft: dash,
-        }}
-      />
-      <span
-        style={{
-          position: "absolute",
-          left: pct(toHours),
-          top: y2 - 2.5,
-          width: 5,
-          height: 5,
-          marginLeft: -2.5,
-          borderRadius: "50%",
-          background: "var(--color-iris-500)",
-        }}
-      />
-    </>
-  );
-}
-
 /* ─── Legend ────────────────────────────────────────────────────────────── */
 
 function Legend() {
@@ -1786,17 +2109,12 @@ function Legend() {
               width: 14,
               height: 10,
               borderRadius: 3,
-              border: "1px solid var(--lane-limit-bd)",
-              background:
-                "repeating-linear-gradient(45deg, rgba(158,57,0,.16), rgba(158,57,0,.16) 3px, transparent 3px, transparent 6px)",
+              border: `1px solid ${MAINT_BD}`,
+              background: `repeating-linear-gradient(45deg, ${MAINT_HATCH}, ${MAINT_HATCH} 3px, transparent 3px, transparent 6px)`,
             }}
           />
         }
         label="maintenance"
-      />
-      <Key
-        swatch={<span style={{ width: 14, height: 0, borderTop: "1.5px dashed var(--color-iris-400)" }} />}
-        label="same order, next belt"
       />
     </div>
   );

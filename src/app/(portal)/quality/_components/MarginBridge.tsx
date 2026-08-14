@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { Button } from "@navanta-ai/design-system";
-import { ArrowRight } from "@phosphor-icons/react";
+import { ArrowRight, Check } from "@phosphor-icons/react";
 import { MARGIN_BRIDGE } from "@/types/quality";
+import { useQuality } from "@/context/QualityContext";
 
 const usd = (n: number) => `$${n.toLocaleString()}`;
 
@@ -11,11 +11,15 @@ const usd = (n: number) => `$${n.toLocaleString()}`;
  * The margin bridge. The headline number is only interesting because a named
  * share of it traces to one scheduling decision — that share is the whole
  * argument for Quality feeding Sawyer, so it's the first thing on the page and
- * it links straight to the claims that prove it.
+ * it carries the button that sends the finding upstream. That is the loop:
+ * a grading-side pattern becomes a hard rule in Sawyer's constraint model,
+ * without anyone writing a policy document.
  */
 export default function MarginBridge() {
   const { total, fromSequencing, breakdown } = MARGIN_BRIDGE;
   const share = Math.round((fromSequencing / total) * 100);
+  const { sentFindings, sendFinding } = useQuality();
+  const sent = sentFindings.has("margin-bridge");
 
   return (
     <section
@@ -104,15 +108,24 @@ export default function MarginBridge() {
           <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
             {share}% of it traces to how the work was sequenced
           </span>
-          <Link href="/quality/claims">
+          {sent ? (
+            <span
+              className="inline-flex items-center type-caption"
+              style={{ gap: 6, color: "var(--text-success)" }}
+            >
+              <Check size={14} weight="bold" />
+              Sent to Sawyer — now a hard rule
+            </span>
+          ) : (
             <Button
-              variant="outline"
+              variant="primary"
               size="sm"
               iconRight={<ArrowRight size={14} weight="bold" />}
+              onClick={() => sendFinding("margin-bridge")}
             >
-              See the claims behind it
+              Send the finding to Sawyer
             </Button>
-          </Link>
+          )}
         </div>
       </div>
     </section>

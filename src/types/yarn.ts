@@ -19,6 +19,26 @@ export const APPROVAL_LABEL: Record<ApprovalKind, string> = {
   sizing: "Lot sizing",
 };
 
+/** The two things Sable brings for signature, split because they are two
+ *  different jobs on two different objects. Allocating a *yarn lot* to the
+ *  orders it will serve is a supply decision, made before any colour exists;
+ *  approving a *dye lot* is a shade decision, made against a standard. They
+ *  share a queue's shape but not its columns, so they are tabs, not filters. */
+export type ApprovalTab = "yarn" | "dye" | "approved";
+
+/** A colour chip in front of a lot. The two kinds are drawn differently on
+ *  purpose: a yarn lot is undyed fibre — a soft, textured, natural tone — while
+ *  a dye lot carries the actual shade it produces. Same size, unmistakably not
+ *  the same thing, so a row is never ambiguous about which object it is. */
+export interface LotSwatch {
+  type: ApprovalTab;
+  /** For a yarn lot, the greige/natural tone; for a dye lot, the dyed shade. */
+  colour: string;
+  /** Yarn lots only: a photo of the cone, chosen to match the tone. Falls back
+   *  to a drawn cone if the file is missing, so the row never breaks. */
+  image?: string;
+}
+
 /** One line of a dye recipe: a dyestuff and how much of it, against what the
  *  standard called for. `delta` is what changed and why it isn't noise. */
 export interface FormulaLine {
@@ -39,9 +59,18 @@ export interface GenealogyNode {
 
 export interface ApprovalRow {
   id: string;
+  /** Which queue this sits in. */
+  tab: ApprovalTab;
   kind: ApprovalKind;
   /** What is being approved — the dye lot, the creel, the lot being sized. */
   subject: { id: string; label: string; kind: "dyelot" | "yarn" };
+  /** The chip in front of the subject — yarn tone or dye shade. */
+  swatch: LotSwatch;
+  /** Yarn tab only: the fibre grade and how much arrived. */
+  grade?: string;
+  received?: string;
+  /** Dye tab only: predicted shade accuracy against standard. */
+  shade?: string;
   /** One neutral line: what Sable did, not what it wants. */
   title: string;
   /** The yarn lot the proposal is built from. */
@@ -56,8 +85,14 @@ export interface ApprovalRow {
   value: number;
   /** Why it needs a person rather than running. */
   escalation: string;
-  /** Sable's read, two short lines for the recommendation column. */
+  /** Sable's read, two short lines — shown in the review modal. */
   insight: { headline: string; detail: string };
+  /** The compact form the table column shows: the call, how sure Sable is of
+   *  it, and the single lab reading that stands behind it (ΔE for a dye lot,
+   *  the fibre grade for a yarn lot). The prose in `insight` is the long form. */
+  verdict: string;
+  confidence: number;
+  lab: string;
   /** The lot chain this proposal sits on. Per-approval rather than one panel
    *  on the page: each proposal is built from a different yarn lot, and a
    *  single chain shown page-level would be true of only one of them.
@@ -74,16 +109,126 @@ export interface ApprovalRow {
    *  difference between a recommendation and a guess. */
   checks: ReadonlyArray<{ label: string; result: string; pass: boolean }>;
   at: string;
+  /** Set on rows the engine settled inside its limits — who signed it, and
+   *  which limit made that allowed. A person's name here means they signed. */
+  approvedBy?: string;
+  approvedRule?: string;
 }
 
 /** Three approvals waiting on Priya this week. Different *kinds* of commitment
  *  on purpose — a recipe, a run order, and a quantity — because that is the
  *  spread of things Sable can propose but must not sign. */
 export const APPROVALS: ReadonlyArray<ApprovalRow> = [
+  /* ── Yarn lot → order ─────────────────────────────────────────────────── */
+  {
+    id: "AP-3301",
+    tab: "yarn",
+    kind: "sizing",
+    subject: { id: "Y-30918", label: "Y-30918 · Cascade base", kind: "yarn" },
+    swatch: { type: "yarn", colour: "#DED7C6", image: "/yarn/cone-ecru.png" },
+    grade: "Draw B · 18/1",
+    received: "2,400 lb",
+    title: "Allocate Y-30918 across two Cascade orders on one draw",
+    yarnLot: "Y-30918",
+    qty: "1,840 lb",
+    covers: "ORD-77310 · ORD-77412",
+    value: 4200,
+    escalation:
+      "Two orders off one draw hold their shade; splitting them across draws is what produced CLM-2291. Committing the draw is the person's call.",
+    insight: {
+      headline: "Allocate",
+      detail: "560 lb spare returns to stock",
+    },
+    verdict: "Approve",
+    confidence: 96,
+    lab: "18/1 · in spec",
+    genealogy: {
+      yarn: { id: "Y-30918", note: "Supplier draw B · 2,400 lb received" },
+      dyeLot: { id: "DL-4471", note: "Cascade · 1,840 lb committed" },
+    },
+    checks: [
+      { label: "Single draw", result: "yes · shade holds", pass: true },
+      { label: "Both orders inside week 33", result: "yes", pass: true },
+      { label: "Spare returned to stock", result: "560 lb", pass: true },
+      { label: "Supplier lot certified", result: "COA on file", pass: true },
+    ],
+    at: "06:20",
+  },
+  {
+    id: "AP-3302",
+    tab: "yarn",
+    kind: "sizing",
+    subject: { id: "Y-31004", label: "Y-31004 · Dune base", kind: "yarn" },
+    swatch: { type: "yarn", colour: "#E8E2D5", image: "/yarn/cone-blue.png" },
+    grade: "Draw A · 20/1",
+    received: "3,000 lb",
+    title: "Hold Y-31004 for Dune 240 rather than release it to backlog",
+    yarnLot: "Y-31004",
+    qty: "2,150 lb",
+    covers: "ORD-77468",
+    value: 1400,
+    escalation:
+      "Releasing it to backlog frees the fibre now but risks a second draw for Dune 240 later. Which matters more is a commercial call.",
+    insight: {
+      headline: "Hold",
+      detail: "$310 carry vs $1,400 re-dye exposure",
+    },
+    verdict: "Hold",
+    confidence: 88,
+    lab: "20/1 · in spec",
+    genealogy: {
+      yarn: { id: "Y-31004", note: "Supplier draw A · 3,000 lb received" },
+      dyeLot: { id: "DL-4482", note: "Dune · 2,150 lb proposed" },
+    },
+    checks: [
+      { label: "Carry cost", result: "$310 · 1 week", pass: false },
+      { label: "Re-dye exposure if released", result: "$1,400", pass: true },
+      { label: "Warehouse space", result: "available", pass: true },
+    ],
+    at: "06:48",
+  },
+  {
+    id: "AP-3303",
+    tab: "yarn",
+    kind: "sizing",
+    subject: { id: "Y-30877", label: "Y-30877 · Aria base", kind: "yarn" },
+    swatch: { type: "yarn", colour: "#EFEADD", image: "/yarn/cone-white.png" },
+    grade: "Draw C · 18/1",
+    received: "1,600 lb",
+    title: "Short draw on Y-30877 — allocate to the smaller order only",
+    yarnLot: "Y-30877",
+    qty: "1,450 lb",
+    covers: "ORD-77470",
+    value: 900,
+    escalation:
+      "The draw came in 200 lb short of both orders. One has to wait, and which one is a date call the floor can't make alone.",
+    insight: {
+      headline: "Assign to ORD-77470",
+      detail: "the other order has a week of slack",
+    },
+    verdict: "Assign",
+    confidence: 91,
+    lab: "18/1 · 200 lb short",
+    genealogy: {
+      yarn: { id: "Y-30877", note: "Supplier draw C · 1,600 lb received · 200 short" },
+      dyeLot: { id: "DL-4501", note: "Aria · 1,450 lb proposed" },
+    },
+    checks: [
+      { label: "Draw against demand", result: "200 lb short", pass: false },
+      { label: "Tighter promised date", result: "ORD-77470 · 26 Aug", pass: true },
+      { label: "Slack on the other", result: "7 days", pass: true },
+    ],
+    at: "07:05",
+  },
+
+  /* ── Dye lot → approve ────────────────────────────────────────────────── */
   {
     id: "AP-3312",
+    tab: "dye",
     kind: "formula",
     subject: { id: "DL-4471", label: "DL-4471 · Cascade", kind: "dyelot" },
+    swatch: { type: "dye", colour: "#3F3F47", image: "/yarn/cone-dye-cascade.png" },
+    shade: "ΔE 0.8",
     title: "Yarn lot came in off-shade; formula recalculated to hit standard",
     yarnLot: "Y-30918",
     qty: "1,840 lb",
@@ -92,9 +237,12 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     escalation:
       "A recipe change is a commitment, not a correction — every yard of both orders is held to the shade it produces.",
     insight: {
-      headline: "Approve the revision — it lands inside ΔE 1.0 of standard",
-      detail: "3 of 11 dyestuffs changed",
+      headline: "Approve — the recipe was recalculated for this draw",
+      detail: "3 of 11 dyestuffs changed · both orders held to what it makes",
     },
+    verdict: "Approve",
+    confidence: 97,
+    lab: "ΔE 0.8 · pass",
     genealogy: {
       yarn: { id: "Y-30918", note: "Supplier draw B · 2,400 lb received" },
       dyeLot: { id: "DL-4471", note: "Cascade · 1,840 lb committed" },
@@ -118,60 +266,258 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
   },
   {
     id: "AP-3313",
-    kind: "sequence",
-    subject: { id: "Y-30918", label: "Creel · week 33", kind: "yarn" },
-    title: "Week 33 run order breaks light → dark once to hold a fixed install",
-    yarnLot: "Y-30918",
-    qty: "6,100 lb",
-    covers: "4 lots",
-    value: 2800,
-    escalation:
-      "The dark → light jump forces a full purge. Sable will not spend that on its own — the alternative is missing ORD-77310's install date.",
-    insight: {
-      headline: "Approve the break — the purge is cheaper than the miss",
-      detail: "$2,800 purge vs a fixed-date order",
-    },
-    genealogy: {
-      yarn: { id: "Y-30918", note: "Supplier draw B · 2,400 lb received" },
-      dyeLot: { id: "DL-4471", note: "Cascade · the shade-critical lot" },
-      batch: { id: "B-88214", note: "3 rolls · 449 lin yd off the line" },
-    },
-    checks: [
-      { label: "Purges in sequence", result: "2 cheap, 1 full", pass: false },
-      { label: "Creel utilisation", result: "92% · +3 pts vs plan", pass: true },
-      { label: "Shade-critical lots held whole", result: "1 of 1", pass: true },
-      { label: "Fixed-date orders protected", result: "ORD-77310", pass: true },
-    ],
-    at: "06:55",
-  },
-  {
-    id: "AP-3314",
-    kind: "sizing",
+    tab: "dye",
+    kind: "formula",
     subject: { id: "DL-4482", label: "DL-4482 · Dune", kind: "dyelot" },
-    title: "Lot sized above the order to keep a second order on the same shade",
+    swatch: { type: "dye", colour: "#0F766E", image: "/yarn/cone-dye-dune.png" },
+    shade: "ΔE 1.3",
+    title: "Dune shade drifts warm — teal balance nudged to pull it back",
     yarnLot: "Y-31004",
     qty: "2,150 lb",
-    covers: "1 order · 300 lb spare",
+    covers: "1 order",
     value: 1400,
     escalation:
-      "Over-sizing trades certain waste for avoided shade risk. Which is worth more is a commercial call, so it isn't Sable's.",
+      "At ΔE 1.3 it is outside tolerance until the correction; the correction is small but it changes the recipe on record for every future Dune 240.",
     insight: {
-      headline: "Approve the over-size — waste costs less than a re-dye",
-      detail: "$310 waste against $1,400 exposure",
+      headline: "Approve the correction — the recipe is back on standard",
+      detail: "warm drift pulled back · passed on 1st resubmit",
     },
+    verdict: "Approve",
+    confidence: 92,
+    lab: "ΔE 0.9 · pass",
     genealogy: {
       yarn: { id: "Y-31004", note: "Supplier draw A · 3,000 lb received" },
       dyeLot: { id: "DL-4482", note: "Dune · 2,150 lb proposed" },
     },
-    checks: [
-      { label: "Yarn waste if over-sized", result: "300 lb · $310", pass: false },
-      { label: "Re-dye exposure if split", result: "$1,400", pass: true },
-      { label: "Tank capacity", result: "2,150 lb of 2,400", pass: true },
-      { label: "Second order timing", result: "both inside week 33", pass: true },
+    formula: [
+      { dyestuff: "Blue 2R", standard: "0.204%", proposed: "0.221%", delta: "+0.017" },
+      { dyestuff: "Yellow 4G", standard: "0.118%", proposed: "0.109%", delta: "−0.009" },
+      { dyestuff: "Levelling agent", standard: "1.20%", proposed: "1.20%" },
+      { dyestuff: "Acid buffer", standard: "0.80%", proposed: "0.80%" },
     ],
-    at: "07:20",
+    checks: [
+      { label: "Predicted ΔE, corrected", result: "0.9 · tol ≤ 1.0", pass: true },
+      { label: "Lab dip", result: "passed on 1st submit", pass: true },
+      { label: "Warm drift, uncorrected", result: "ΔE 1.3", pass: false },
+    ],
+    at: "07:02",
+  },
+  {
+    id: "AP-3314",
+    tab: "dye",
+    kind: "formula",
+    subject: { id: "DL-4488", label: "DL-4488 · Meridian", kind: "dyelot" },
+    swatch: { type: "dye", colour: "#A16207", image: "/yarn/cone-dye-meridian.png" },
+    shade: "ΔE 0.6",
+    title: "Meridian recipe unchanged — routine re-approval on a new draw",
+    yarnLot: "Y-30918",
+    qty: "1,120 lb",
+    covers: "1 order",
+    value: 600,
+    escalation:
+      "Nothing changed in the recipe, but the draw did — Sable will not carry a shade sign-off across a fibre change without a person confirming the dip.",
+    insight: {
+      headline: "Approve — recipe unchanged on the new draw",
+      detail: "re-confirmed across the fibre change",
+    },
+    verdict: "Approve",
+    confidence: 98,
+    lab: "ΔE 0.6 · pass",
+    genealogy: {
+      yarn: { id: "Y-30918", note: "Supplier draw B · 2,400 lb received" },
+      dyeLot: { id: "DL-4488", note: "Meridian · 1,120 lb proposed" },
+    },
+    formula: [
+      { dyestuff: "Yellow 4G", standard: "0.362%", proposed: "0.362%" },
+      { dyestuff: "Red 3BN", standard: "0.241%", proposed: "0.241%" },
+      { dyestuff: "Levelling agent", standard: "1.20%", proposed: "1.20%" },
+    ],
+    checks: [
+      { label: "Predicted ΔE", result: "0.6 · tol ≤ 1.0", pass: true },
+      { label: "Recipe vs standard", result: "identical", pass: true },
+      { label: "Draw changed", result: "B, was A", pass: false },
+    ],
+    at: "07:18",
+  },
+
+  /* ── Settled by the engine ────────────────────────────────────────────── */
+  // Inside Sable's limits, so they never reached a person. Listed because an
+  // autonomy claim is only credible if the work it covers can be inspected.
+  {
+    id: "AP-3290",
+    tab: "approved",
+    kind: "sizing",
+    subject: { id: "Y-30844", label: "Y-30844 · Aria base", kind: "yarn" },
+    swatch: { type: "yarn", colour: "#EFEADD", image: "/yarn/cone-white.png" },
+    grade: "Draw A · 18/1",
+    received: "2,100 lb",
+    title: "Allocate Y-30844 to ORD-77266 on a single draw",
+    yarnLot: "Y-30844",
+    qty: "1,560 lb",
+    covers: "ORD-77266",
+    value: 1800,
+    escalation: "Inside the sizing limit — one draw, one order, no shade risk.",
+    insight: { headline: "Allocated on one draw", detail: "no spare, no shade exposure" },
+    verdict: "Approved",
+    confidence: 98,
+    lab: "18/1 · in spec",
+    genealogy: {
+      yarn: { id: "Y-30844", note: "Supplier draw A · 2,100 lb received" },
+      dyeLot: { id: "DL-4455", note: "Aria · 1,560 lb committed" },
+    },
+    checks: [
+      { label: "Single draw", result: "yes · shade holds", pass: true },
+      { label: "Inside sizing limit", result: "1 order", pass: true },
+    ],
+    at: "05:12",
+    approvedBy: "Sable",
+    approvedRule: "Single-draw allocations under 2,000 lb",
+  },
+  {
+    id: "AP-3294",
+    tab: "approved",
+    kind: "formula",
+    subject: { id: "DL-4459", label: "DL-4459 · Dune", kind: "dyelot" },
+    swatch: { type: "dye", colour: "#0F766E", image: "/yarn/cone-dye-dune.png" },
+    shade: "ΔE 0.4",
+    title: "Dune recipe unchanged on a repeat draw",
+    yarnLot: "Y-30861",
+    qty: "1,240 lb",
+    covers: "1 order",
+    value: 900,
+    escalation: "Recipe identical to standard and the draw is the same — nothing to judge.",
+    insight: { headline: "Recipe identical to standard", detail: "same draw, nothing to judge" },
+    verdict: "Approved",
+    confidence: 99,
+    lab: "ΔE 0.4 · pass",
+    genealogy: {
+      yarn: { id: "Y-30861", note: "Supplier draw A · 1,900 lb received" },
+      dyeLot: { id: "DL-4459", note: "Dune · 1,240 lb committed" },
+    },
+    checks: [
+      { label: "Recipe vs standard", result: "identical", pass: true },
+      { label: "Predicted ΔE", result: "0.4 · tol ≤ 1.0", pass: true },
+    ],
+    at: "05:48",
+    approvedBy: "Sable",
+    approvedRule: "Unchanged recipe, same draw, ΔE ≤ 0.5",
+  },
+  {
+    id: "AP-3298",
+    tab: "approved",
+    kind: "sizing",
+    subject: { id: "Y-30869", label: "Y-30869 · Meridian base", kind: "yarn" },
+    swatch: { type: "yarn", colour: "#DED7C6", image: "/yarn/cone-ecru.png" },
+    grade: "Draw C · 20/1",
+    received: "1,700 lb",
+    title: "Top up ORD-77281 from the balance of Y-30869",
+    yarnLot: "Y-30869",
+    qty: "480 lb",
+    covers: "ORD-77281",
+    value: 600,
+    escalation: "A top-up from an already-committed lot — the shade decision was made when the lot was.",
+    insight: { headline: "Balance released to its own order", detail: "shade already signed" },
+    verdict: "Approved",
+    confidence: 97,
+    lab: "20/1 · in spec",
+    genealogy: {
+      yarn: { id: "Y-30869", note: "Supplier draw C · 1,700 lb received" },
+      dyeLot: { id: "DL-4462", note: "Meridian · 480 lb committed" },
+    },
+    checks: [
+      { label: "Lot already signed", result: "yes", pass: true },
+      { label: "Top-up under limit", result: "480 lb", pass: true },
+    ],
+    at: "06:05",
+    approvedBy: "Marcus",
+    approvedRule: "Signed by hand",
   },
 ];
+
+/**
+ * One stop in a lot's life, for the traceability tab.
+ *
+ * The chain used to be three cards — yarn lot, dye lot, batch — which said what
+ * the lot *is* but not where it has been. A traceback is only useful if it
+ * names the machine: "which belt ran this" is the first question asked when a
+ * claim comes back, and it was the one thing the panel couldn't answer.
+ *
+ * `done: false` marks a stage that hasn't happened. Most of Sable's work is an
+ * instruction for product that doesn't exist yet, so the chain stopping early
+ * is the normal case rather than missing data.
+ */
+export interface TraceStep {
+  stage: string;
+  /** The lot, batch or order this stage produced. */
+  id?: string;
+  /** The machine or line it ran on — the answer to "which belt". */
+  where?: string;
+  at: string;
+  detail: string;
+  done: boolean;
+}
+
+/**
+ * The full chain behind an approval, built from the row rather than authored
+ * per row — the stages a carpet lot passes through are the same every time, so
+ * repeating them nine times would only be nine chances to disagree.
+ */
+export function traceFor(row: ApprovalRow): ReadonlyArray<TraceStep> {
+  const dye = row.tab === "dye" || row.subject.kind === "dyelot";
+  const yarnId = row.genealogy.yarn.id;
+  const lotId = row.genealogy.dyeLot.id;
+  const batch = row.genealogy.batch;
+
+  return [
+    {
+      stage: "Received",
+      id: yarnId,
+      where: "Goods-in · dock 2",
+      at: "11 Aug · 07:40",
+      detail: `${row.genealogy.yarn.note} · COA on file`,
+      done: true,
+    },
+    {
+      stage: "Creeled & tufted",
+      id: yarnId,
+      where: dye ? "TUF-03 · 5/64 gauge" : "TUF-01 · 1/10 gauge",
+      at: "12 Aug · 06:10",
+      detail: dye
+        ? "Greige rolled and staged for the dye house"
+        : "Proposed — this allocation decides which machine takes the draw",
+      done: dye,
+    },
+    {
+      stage: "Dyed",
+      id: lotId,
+      where: dye ? "BECK-1 · batch, shade sequenced" : undefined,
+      at: dye ? "12 Aug · 09:20" : "—",
+      detail: dye
+        ? `${row.genealogy.dyeLot.note} · recipe on this approval`
+        : "Not dyed — the lot has no colour until a recipe is signed",
+      done: dye,
+    },
+    {
+      stage: "Backed",
+      where: batch ? "BAK-01 · precoat + secondary" : undefined,
+      at: batch ? "12 Aug · 11:05" : "—",
+      detail: batch ? "Ran on the constraint line" : "Waiting on the stage above",
+      done: Boolean(batch),
+    },
+    {
+      stage: "Finished & inspected",
+      id: batch?.id,
+      where: batch ? "FIN-01 · shear · inspect · roll" : undefined,
+      at: batch ? "12 Aug · 13:40" : "—",
+      detail: batch ? batch.note : "Nothing exists to trace until this is approved",
+      done: Boolean(batch),
+    },
+  ];
+}
+
+/** Which tab a row belongs to, and how many are pending there. */
+export const approvalsForTab = (tab: ApprovalTab) =>
+  APPROVALS.filter((a) => a.tab === tab);
 
 /* ─── Sable's read ──────────────────────────────────────────────────────── */
 

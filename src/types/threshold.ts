@@ -58,26 +58,21 @@ export type PlantThresholds = Record<ThresholdKey, ThresholdMode>;
 
 /** Deliberately different per plant — switching plants should visibly change
  *  the dial, because that's the point of setting it per plant. */
-const AIKEN: PlantThresholds = {
+// The demo plant's dial is the contested one — several calls still set to
+// "ask" — so widening a limit visibly changes what the engine settles alone.
+const CONTESTED: PlantThresholds = {
   reseq: "ask", grade2: "ask", split: "ask", expedite: "limit",
   drift: "auto", grade: "auto", report: "auto", workorder: "limit",
 };
-const DALTON: PlantThresholds = {
+const STEADY: PlantThresholds = {
   reseq: "auto", grade2: "limit", split: "ask", expedite: "auto",
   drift: "auto", grade: "auto", report: "auto", workorder: "auto",
 };
-const CAUTIOUS: PlantThresholds = {
-  reseq: "ask", grade2: "ask", split: "ask", expedite: "ask",
-  drift: "limit", grade: "limit", report: "auto", workorder: "ask",
-};
 
 export const DEFAULT_THRESHOLDS: Record<PlantId, PlantThresholds> = {
-  p04: { ...DALTON },
-  p07: { ...DALTON, reseq: "limit" },
-  p12: { ...AIKEN },
-  p15: { ...AIKEN, expedite: "ask" },
-  p21: { ...CAUTIOUS },
-  p33: { ...CAUTIOUS, report: "auto", workorder: "limit" },
+  p04: { ...CONTESTED },
+  p07: { ...STEADY, reseq: "limit" },
+  p15: { ...CONTESTED, expedite: "ask" },
 };
 
 export function thresholdLabel(key: ThresholdKey): string {

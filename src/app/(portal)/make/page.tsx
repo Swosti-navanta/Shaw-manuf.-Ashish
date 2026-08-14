@@ -9,6 +9,7 @@ import {
   EmptyState,
   KpiBreakdownCard,
   KpiGrid,
+  PageHeading,
   TableShell,
   type DataTableColumn,
 } from "@navanta-ai/design-system";
@@ -222,35 +223,14 @@ export default function MakePage() {
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <header className="flex flex-col" style={{ gap: 4 }}>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.11em",
-            textTransform: "uppercase",
-            color: "var(--ds-text-placeholder, var(--text-muted))",
-          }}
-        >
-          Make · Rowan · {plantLabel(plant)}
-        </span>
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            letterSpacing: "-0.01em",
-            color: "var(--ds-text-primary)",
-          }}
-        >
-          {counts.person > 0
+      <PageHeading
+        title={
+          counts.person > 0
             ? `${counts.person} decision${counts.person === 1 ? " needs" : "s need"} you this shift`
-            : "Nothing needs you this shift"}
-        </h1>
-        <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          Rowan reads the run against the released plan and raises what matters, to whom — with the
-          options already costed. {profile.name}{" "}
-          owns these calls.
-        </p>
-      </header>
+            : "Nothing needs you this shift"
+        }
+        subtitle={`Make · Rowan · ${plantLabel(plant)}. Rowan reads the run against the released plan and raises what matters, to whom — with the options already costed. ${profile.name} owns these calls.`}
+      />
 
       {/* What Marcus is answerable for this shift. These sit above
           the queue because they're the standing scorecard the decisions move —
@@ -277,6 +257,7 @@ export default function MakePage() {
       </KpiGrid>
 
       <TableShell
+      customize={false}
         title="Decision queue"
         icon={Gauge}
         totalItems={rows.length}
@@ -317,6 +298,7 @@ export default function MakePage() {
           rowKey={(a) => a.id}
           rowHeight={64}
           rowBorderColor="#F1F3F5"
+          onRowClick={(a) => setDeck(a)}
         />
       </TableShell>
 

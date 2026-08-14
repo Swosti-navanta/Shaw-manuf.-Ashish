@@ -12,6 +12,7 @@ import { QualityProvider } from "@/context/QualityContext";
 import { YarnProvider } from "@/context/YarnContext";
 import { DetailDrawerProvider } from "@/context/DetailDrawerContext";
 import Sidebar from "@/components/layout/Sidebar";
+import { YarnConeMask } from "@/components/ui/YarnCone";
 
 export default function PortalLayout({ children }: { children: ReactNode }) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -64,6 +65,8 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <DetailDrawer />
+              {/* One shared cone silhouette; every bar tints its own copy. */}
+              <YarnConeMask />
             </DetailDrawerProvider>
               </YarnProvider>
             </QualityProvider>

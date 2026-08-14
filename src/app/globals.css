@@ -484,3 +484,34 @@ button[aria-haspopup="dialog"] > span.line-clamp-1.text-\[var\(--text-neutral\)\
 body > .fixed.z-\[95\] {
   border-left-color: transparent;
 }
+
+/* ── DS override 4: alerting KPI breakdown line ─────────────────────────────
+   `KpiBreakdownCard` has no trend badge and no tone prop — its detail line is
+   always muted. On the executive dashboard that line carries the movement
+   ("−5.1% vs plan", "1 forecast to miss"), so on the cards where the news is
+   bad it has to read as bad; muted grey is the one thing it must not be.
+
+   Scoped to `.kpi-alert`, which the page puts on those cards only. Targets the
+   card's own detail paragraph by the muted class the DS gives it, so the
+   selector out-specifies that class without reaching into private internals. */
+.kpi-alert p.text-muted-foreground {
+  color: var(--text-danger);
+}
+
+/* ── DS override 5: agent-marked KPI card ───────────────────────────────────
+   `KpiBreakdownCard` exposes no icon slot — only the standard Info glyph — so
+   the AiStar is positioned over the card and the title row indented to leave
+   room for it. Scoped to `.kpi-agent`, which marks the one card reporting on
+   the agents themselves rather than on the plant. */
+.kpi-agent > div:first-child {
+  padding-left: 20px;
+}
+
+/* KPI/detail drawers open from tiles inside the z-1000 deck modal, so lift
+   the DS DetailPanelShell scrim/panel above it. */
+body > .fixed.z-\[90\] {
+  z-index: 1100 !important;
+}
+body > .fixed.z-\[95\] {
+  z-index: 1101 !important;
+}
