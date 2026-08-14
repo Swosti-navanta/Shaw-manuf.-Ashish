@@ -171,14 +171,10 @@ const FILTERS: Record<Exclude<TabId, "claims">, { f: Filter; label: string; coun
 
 /* ── Component ────────────────────────────────────────────────────────────── */
 
-const TOTALS: Record<Exclude<TabId, "claims">, number> = { yarn: 42, dye: 31, order: 28 };
-/** How many rows show before the table is expanded. */
-const COLLAPSED = 4;
-
 /** The full population each tab samples from — the demo carries 6 rows, but the
  *  count is the real inventory, so the table reads "6 of 42" and expands. */
 const TOTALS: Record<Exclude<TabId, "claims">, number> = { yarn: 42, dye: 31, order: 28 };
-/** Rows shown before "Show all". */
+/** How many rows show before the table is expanded. */
 const COLLAPSED = 4;
 
 export default function QcTabs() {
