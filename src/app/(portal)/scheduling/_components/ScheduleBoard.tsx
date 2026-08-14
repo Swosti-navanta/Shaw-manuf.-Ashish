@@ -156,12 +156,15 @@ const AXIS_GAP = 12;
  *  (12 Aug 2026) so the timeline reads as real dates, not just "Tomorrow". */
 const DAY_DATE = ["12 Aug", "13 Aug", "14 Aug"];
 
-/** Breathing room before hour zero. Zero by choice: because a bar's x-position
- *  *is* its time, insetting the track has to move the axis by the same amount,
- *  which reads as the whole timeline sliding right rather than as padding. The
- *  mechanism stays (lane and axis share one inset box, so bars keep sitting
- *  under their own gridlines) — only the value is off. */
-const TRACK_INSET = 0;
+/** Breathing room before hour zero, so a run starting at 06:00 doesn't sit on
+ *  the gutter's border.
+ *
+ *  Applied to the lane *and* to the axis, which is the only way it can work:
+ *  a bar's x-position is its time, so inset the track without insetting the
+ *  clock and every bar lands under the wrong label. Both resolve their
+ *  percentages against the same inset box, so 06:00 and the run that starts
+ *  at 06:00 move together and stay in register. */
+const TRACK_INSET = 16;
 
 /** Maintenance reads in slate blue, not the amber a changeover uses: a belt
  *  being worked on and a belt changing colour are different reasons it isn't
