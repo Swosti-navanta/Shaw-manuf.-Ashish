@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Sliders,
   ChartBar,
+  SidebarSimple,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import {
@@ -39,7 +40,7 @@ const INBOX_ITEMS: NavDef[] = [
 ];
 
 const FLOOR_ITEMS: NavDef[] = [
-  { name: "Yarn", href: "/yarn", icon: Drop, agent: "Sable" },
+  { name: "Yarn planning", href: "/yarn", icon: Drop, agent: "Sable" },
   { name: "Make", href: "/make", icon: Gauge, agent: "Rowan" },
   { name: "Quality", href: "/quality", icon: ShieldCheck, agent: "Wren" },
 ];
@@ -126,27 +127,33 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
         onNavigate={(item) => router.push(item.key)}
         expanded={expanded}
         onExpandedChange={onExpandedChange}
-        logo={
-          <div className="flex items-center" style={{ gap: 8 }}>
-            <Mark />
-            <div className="flex flex-col" style={{ lineHeight: 1.15 }}>
-              <span className="type-subheading" style={{ color: "var(--ds-text-primary)" }}>
-                Shaw
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  color: "var(--ds-text-secondary)",
-                }}
-              >
-                Manufacturing
-              </span>
-            </div>
-          </div>
+        /* The rail's top slot, which used to hold the mark. The expand control
+           lives here rather than in the top bar because it acts on the rail —
+           a button that widens this column reads as belonging to it, and it
+           sits above every nav icon where a person looks for it first. */
+        logoCollapsed={
+          <button
+            type="button"
+            onClick={() => onExpandedChange(true)}
+            aria-label="Expand navigation"
+            aria-expanded={expanded}
+            title="Expand navigation"
+            className="flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-[var(--sidebar-hover-bg)]"
+            style={{ cursor: "pointer" }}
+          >
+            <SidebarSimple size={18} weight="bold" color="#FFFFFF" />
+          </button>
         }
-        logoCollapsed={<Mark title="Shaw Manufacturing" />}
+        logo={
+          /* The white cut of the wordmark: this panel is teal, and the navy
+             logo the top bar uses would all but vanish on it. */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src="/shaw-logo-white.svg"
+            alt="Shaw"
+            style={{ height: 26, width: "auto", marginLeft: 2 }}
+          />
+        }
         onSettingsClick={() => router.push(SETTINGS_HREF)}
         settingsLabel="Settings"
         user={{
@@ -169,23 +176,3 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
   );
 }
 
-function Mark({ title }: { title?: string }) {
-  return (
-    <span
-      title={title}
-      aria-hidden="true"
-      className="inline-grid place-items-center shrink-0"
-      style={{
-        width: 26,
-        height: 26,
-        borderRadius: 8,
-        background: "var(--gradient-brand)",
-        color: "#FFFFFF",
-        fontWeight: 600,
-        fontSize: 13,
-      }}
-    >
-      S
-    </span>
-  );
-}

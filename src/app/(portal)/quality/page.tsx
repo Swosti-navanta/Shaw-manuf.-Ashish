@@ -1,6 +1,6 @@
 "use client";
 
-import { AiStar, KpiBreakdownCard, KpiGrid } from "@navanta-ai/design-system";
+import { KpiBreakdownCard, KpiGrid, PageHeading } from "@navanta-ai/design-system";
 import { useScope } from "@/context/ScopeContext";
 import { plantLabel } from "@/types/division";
 import { CLAIMS_KPIS } from "@/types/quality";
@@ -22,31 +22,10 @@ export default function QualityPage() {
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <header className="flex flex-col" style={{ gap: 4 }}>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.11em",
-            textTransform: "uppercase",
-            color: "var(--ds-text-placeholder, var(--text-muted))",
-          }}
-        >
-          Quality &amp; claims · Wren · {scope}
-        </span>
-        <h1
-          className="inline-flex items-center"
-          style={{
-            gap: 9,
-            fontSize: 22,
-            fontWeight: 600,
-            letterSpacing: "-0.01em",
-            color: "var(--ds-text-primary)",
-          }}
-        >
-          <AiStar size={19} />
-          Three claims, four months, one cause
-        </h1>
-      </header>
+      <PageHeading
+        title="Three claims, four months, one cause"
+        subtitle={`Quality & claims · Wren · ${scope}`}
+      />
 
       {/* Who stands behind the reading. */}
       <ReviewStrip />
