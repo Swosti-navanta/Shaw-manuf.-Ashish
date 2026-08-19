@@ -69,13 +69,10 @@ export default function TopBar() {
 
   return (
     <header
-      className="nav-chrome relative z-10 flex items-center justify-between shrink-0"
+      className="relative z-10 flex items-center justify-between shrink-0"
       style={{
-        /* Shaw teal, continuous with the rail — the two together form the
-           app's chrome, so a white bar above a teal rail read as the rail
-           being a stripe rather than as the frame around the work. */
-        background: "var(--nav-teal)",
-        borderBottom: "1px solid rgba(255,255,255,.18)",
+        background: "var(--surface-base)",
+        borderBottom: "1px solid #E4E5E7",
         height: 48,
         padding: "0 24px",
       }}
@@ -84,7 +81,7 @@ export default function TopBar() {
       <div className="flex items-center" style={{ gap: 12 }}>
         <span
           className="type-body-medium"
-          style={{ color: "#FFFFFF", whiteSpace: "nowrap" }}
+          style={{ color: "var(--ds-text-primary)", whiteSpace: "nowrap" }}
         >
           {title}
         </span>
