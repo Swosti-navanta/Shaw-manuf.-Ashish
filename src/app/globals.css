@@ -531,3 +531,42 @@ body > .fixed.z-\[95\] {
 aside .h-\[52px\]:empty {
   display: none;
 }
+
+/* ─── The navigation rail, in Shaw teal ──────────────────────────────────
+   The DS SideNav is built entirely on tokens, so the rail is re-themed by
+   redefining them on the two elements that draw it — the collapsed rail and
+   the expanded panel — rather than by overriding a dozen individual rules.
+   Custom properties inherit down the DOM, so everything inside (icons,
+   dividers, hover and active states, the user row) follows from these.
+
+   Scoped to those elements, not :root: --surface-base and --text-secondary
+   are app-wide tokens, and setting them globally would repaint every card on
+   every page. */
+aside.w-12,
+.w-64.z-50.border-r {
+  --surface-base: #003f53;
+  --surface-raised: #003f53;
+  /* Separators and rings read as light-on-dark now, so they are drawn from
+     the foreground rather than from the neutral border ramp. */
+  --border-default: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 255, 255, 0.42);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --ds-text-primary: #ffffff;
+  --ds-text-secondary: rgba(255, 255, 255, 0.72);
+  --foreground: #ffffff;
+  /* Tinted white rather than a second teal, so the active row keeps its
+     contrast against the rail whatever the rail's exact value is. */
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.1);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.16);
+}
+
+/* The active icon is filled from a gradient whose stops are declared in a
+   hidden <svg> that sits OUTSIDE the rail, so it resolves these two against
+   the page rather than against the teal. Without this the current page's
+   icon stays near-black on the dark ground — the one icon that most needs
+   to be legible. */
+svg[aria-hidden="true"][width="0"] {
+  --foreground: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+}
