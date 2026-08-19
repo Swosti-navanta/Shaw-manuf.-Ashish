@@ -19,7 +19,7 @@
 // Persisted in a cookie so the proxy (src/proxy.ts) can route-guard against
 // the same source of truth the client uses.
 
-export type Persona = "ops";
+export type Persona = "ops" | "plant";
 
 export interface PersonaProfile {
   /** Display name shown in the profile menu. */
@@ -42,9 +42,19 @@ export const PERSONAS: Record<Persona, PersonaProfile> = {
     scope: "All divisions · every agent",
     agents: ["Rowan", "Wren", "Sawyer", "Sable"],
   },
+  // The floor seat. Owns the shift's decisions but not the financial read —
+  // Performance (POVA, budgets) and the network Thresholds dial are senior
+  // views, so this persona never sees them.
+  plant: {
+    name: "Dana",
+    role: "Plant Manager · Plant 12",
+    initials: "DW",
+    scope: "Plant 12 · shift decisions, no financials",
+    agents: ["Rowan", "Wren", "Sable"],
+  },
 };
 
-export const PERSONA_ORDER: ReadonlyArray<Persona> = ["ops"];
+export const PERSONA_ORDER: ReadonlyArray<Persona> = ["ops", "plant"];
 
 /** The only persona there is. Everything that used to branch on identity
  *  resolves to this. */
@@ -71,8 +81,12 @@ export const PERSONA_PAGES: Record<Persona, ReadonlyArray<string>> = {
     "/scheduling",
     "/yarn",
     "/performance",
+    "/sage",
     "/thresholds",
   ],
+  // No /performance and no /thresholds — financials and network dials are
+  // senior views. Everything operational stays.
+  plant: ["/overview", "/make", "/quality", "/scheduling", "/yarn", "/sage"],
 };
 
 /** Where you land after sign-in. The inbox, because the product's opening
@@ -80,6 +94,7 @@ export const PERSONA_PAGES: Record<Persona, ReadonlyArray<string>> = {
  *  dashboard to read. */
 export const PERSONA_HOME: Record<Persona, string> = {
   ops: "/overview",
+  plant: "/overview",
 };
 
 /** One owner, so both of these are simply true. They stay as functions
@@ -103,5 +118,5 @@ export function isPathAllowedForPersona(
 }
 
 export function isPersona(value: string | undefined): value is Persona {
-  return value === "ops";
+  return value === "ops" || value === "plant";
 }

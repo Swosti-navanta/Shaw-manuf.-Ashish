@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { GearSix } from "@phosphor-icons/react";
 import { usePersona } from "@/context/PersonaContext";
+import { PERSONA_ORDER, PERSONAS } from "@/types/persona";
 
 interface ProfileMenuProps {
   /** Controlled open state — driven by the DS SideNav user block. */
@@ -35,7 +36,7 @@ function Avatar({ initials, size = 24 }: { initials: string; size?: number }) {
 }
 
 export function ProfileMenu({ open, anchor, onClose }: ProfileMenuProps) {
-  const { profile } = usePersona();
+  const { persona, profile, setPersona } = usePersona();
   const router = useRouter();
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
@@ -93,6 +94,50 @@ export function ProfileMenu({ open, anchor, onClose }: ProfileMenuProps) {
 
       <div className="w-full" style={{ height: 1, background: "var(--ds-border-subtle)", margin: "6px 0" }} />
 
+      {/* Switch persona — the seat decides which surfaces exist. Only senior
+          seats see the financial views. */}
+      <span
+        className="type-caption block"
+        style={{
+          padding: "2px 8px 4px",
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "var(--ds-text-placeholder, var(--text-muted))",
+        }}
+      >
+        View as
+      </span>
+      {PERSONA_ORDER.map((p) => {
+        const prof = PERSONAS[p];
+        const active = p === persona;
+        return (
+          <button
+            key={p}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setPersona(p);
+              onClose();
+            }}
+            className="flex items-center w-full rounded-md hover:bg-[var(--sidebar-hover-bg)] transition-colors text-left"
+            style={{
+              gap: 10,
+              padding: "6px 8px",
+              background: active ? "var(--color-iris-50)" : undefined,
+            }}
+          >
+            <Avatar initials={prof.initials} size={26} />
+            <span className="flex flex-col min-w-0" style={{ flex: 1 }}>
+              <span className="type-body font-medium truncate" style={{ color: "var(--ds-text-primary)" }}>
+                {prof.name} {active ? "· current" : ""}
+              </span>
+              <span className="type-caption truncate" style={{ color: "var(--ds-text-secondary)" }}>
+                {prof.role} · {prof.scope}
+              </span>
+            </span>
+          </button>
+        );
+      })}
 
       <div className="w-full" style={{ height: 1, background: "var(--ds-border-subtle)", margin: "6px 0" }} />
 
