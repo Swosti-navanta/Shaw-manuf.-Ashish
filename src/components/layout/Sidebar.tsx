@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Sliders,
   ChartBar,
+  SidebarSimple,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import {
@@ -126,6 +127,23 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
         onNavigate={(item) => router.push(item.key)}
         expanded={expanded}
         onExpandedChange={onExpandedChange}
+        /* The rail's top slot, which used to hold the mark. The expand control
+           lives here rather than in the top bar because it acts on the rail —
+           a button that widens this column reads as belonging to it, and it
+           sits above every nav icon where a person looks for it first. */
+        logoCollapsed={
+          <button
+            type="button"
+            onClick={() => onExpandedChange(true)}
+            aria-label="Expand navigation"
+            aria-expanded={expanded}
+            title="Expand navigation"
+            className="flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-[var(--sidebar-hover-bg)]"
+            style={{ cursor: "pointer" }}
+          >
+            <SidebarSimple size={18} weight="bold" color="#FFFFFF" />
+          </button>
+        }
         logo={
           <div className="flex items-center" style={{ gap: 8 }}>
             <Mark />

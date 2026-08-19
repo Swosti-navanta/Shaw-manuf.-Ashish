@@ -21,6 +21,11 @@
   --color-muted-foreground: var(--ds-text-secondary);
 }
 
+:root {
+  /** Shaw teal — the app chrome (nav rail + top bar). */
+  --nav-teal: #003f53;
+}
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -522,15 +527,6 @@ body > .fixed.z-\[95\] {
   40% { opacity: 1; transform: translateY(-2px); }
 }
 
-/* The collapsed rail starts at the nav, not 52px below it.
-   SideNav renders its logo row unconditionally, so dropping `logoCollapsed`
-   left an empty 52px box above the first icon. Matched on `:empty` rather
-   than on the height alone, so the row comes straight back the moment a mark
-   is put in it — and the expanded header, which does carry the wordmark, is
-   never touched. */
-aside .h-\[52px\]:empty {
-  display: none;
-}
 
 /* ─── The navigation rail, in Shaw teal ──────────────────────────────────
    The DS SideNav is built entirely on tokens, so the rail is re-themed by
@@ -544,8 +540,8 @@ aside .h-\[52px\]:empty {
    every page. */
 aside.w-12,
 .w-64.z-50.border-r {
-  --surface-base: #003f53;
-  --surface-raised: #003f53;
+  --surface-base: var(--nav-teal);
+  --surface-raised: var(--nav-teal);
   /* Separators and rings read as light-on-dark now, so they are drawn from
      the foreground rather than from the neutral border ramp. */
   --border-default: rgba(255, 255, 255, 0.18);
@@ -569,4 +565,34 @@ aside.w-12,
 svg[aria-hidden="true"][width="0"] {
   --foreground: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.72);
+}
+
+/* ─── The top bar, on the same teal ──────────────────────────────────────
+   The bar and the rail are one piece of chrome; a white bar above a teal
+   rail read as the rail being a stripe rather than as the frame around the
+   work. The header sets its own background inline — this handles the two
+   scope selects sitting on it, which are DS components and cannot be
+   re-coloured from the call site. */
+.nav-chrome {
+  /* The trigger glyphs carry `color: var(--text-secondary)` inline, and an
+     inline style beats any class — so the token is what has to move, not
+     the rule. */
+  --text-secondary: rgba(255, 255, 255, 0.72);
+}
+
+.nav-chrome [role="combobox"] {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.nav-chrome [role="combobox"]:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Focus ring is drawn from --foreground, which is near-black at this depth
+   and disappears against the teal. */
+.nav-chrome [role="combobox"]:focus,
+.nav-chrome [role="combobox"]:focus-visible {
+  border-color: #ffffff;
 }

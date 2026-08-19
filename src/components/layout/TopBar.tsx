@@ -8,7 +8,6 @@ import {
   Plant,
   RowsPlusBottom,
   Scroll,
-  SidebarSimple,
   SquaresFour,
   Spiral,
   Stack,
@@ -27,10 +26,6 @@ import {
   categoryById,
 } from "@/data/categories";
 
-interface TopBarProps {
-  onToggleSidebar: () => void;
-}
-
 const ROUTE_LABELS: Record<string, string> = {
   overview: "Executive dashboard",
   make: "Make",
@@ -45,7 +40,7 @@ const ROUTE_LABELS: Record<string, string> = {
   audit: "Audit log",
 };
 
-export default function TopBar({ onToggleSidebar }: TopBarProps) {
+export default function TopBar() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
   const titleSeg = segments[segments.length - 1] ?? "overview";
@@ -74,28 +69,22 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
 
   return (
     <header
-      className="relative z-10 flex items-center justify-between shrink-0"
+      className="nav-chrome relative z-10 flex items-center justify-between shrink-0"
       style={{
-        background: "var(--surface-base)",
-        borderBottom: "1px solid #E4E5E7",
+        /* Shaw teal, continuous with the rail — the two together form the
+           app's chrome, so a white bar above a teal rail read as the rail
+           being a stripe rather than as the frame around the work. */
+        background: "var(--nav-teal)",
+        borderBottom: "1px solid rgba(255,255,255,.18)",
         height: 48,
         padding: "0 24px",
       }}
     >
       {/* Left: sidebar toggle + page title */}
       <div className="flex items-center" style={{ gap: 12 }}>
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          aria-label="Toggle sidebar"
-          className="flex items-center justify-center transition-opacity hover:opacity-70"
-          style={{ width: 18, height: 18, background: "transparent" }}
-        >
-          <SidebarSimple size={18} weight="bold" color="#181A1B" />
-        </button>
         <span
           className="type-body-medium"
-          style={{ color: "var(--ds-text-primary)", whiteSpace: "nowrap" }}
+          style={{ color: "#FFFFFF", whiteSpace: "nowrap" }}
         >
           {title}
         </span>

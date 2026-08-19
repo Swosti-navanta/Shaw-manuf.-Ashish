@@ -38,7 +38,7 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
               <div className="flex h-screen w-screen overflow-hidden">
                 <Sidebar expanded={sidebarExpanded} onExpandedChange={setSidebarExpanded} />
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-                  <TopBar onToggleSidebar={() => setSidebarExpanded((v) => !v)} />
+                  <TopBar />
 
                   <div
                     className="relative flex-1 min-h-0"
