@@ -157,3 +157,61 @@ export function stageDetailTask(stage: ProcessStage, agent: string): AgentTask {
     },
   };
 }
+
+/** A machine-row action that resolves through the agent panel rather than the
+ *  decision deck — Explain, and the in-band Adjust auto-log. Narrates the move
+ *  and shows what it touched. */
+export function machineActionTask(
+  machineId: string,
+  role: string,
+  action: { label: string; owner: string; autoLog?: boolean },
+  agent: string,
+): AgentTask {
+  const isExplain = action.owner === "understand";
+  return {
+    id: `make-machine-${machineId}-${action.label}`.replace(/\s+/g, "-").toLowerCase(),
+    agent,
+    label: `${action.label} · ${machineId}`,
+    subject: `${machineId} · ${role}`,
+    steps: isExplain
+      ? [`Pulled ${machineId} off Ignition`, "Read its spec against the band", "Checked the SOP + maintenance history"]
+      : [`Read ${machineId}'s current setpoint`, "Confirmed it sits inside the ±8% band", "Logged the nudge to the Automated tab"],
+    outcome: {
+      summary: isExplain
+        ? `${machineId} (${role}). Here's what its critical spec is doing this hour and what the SOP says to do about it — no decision needed unless it breaks the band.`
+        : `Nudged ${machineId} back toward nominal. It's inside the band, so this auto-logs to the Automated tab — no sign-off, no queue row.`,
+      tiles: isExplain
+        ? [
+            { label: "Machine", value: machineId, tone: "quiet" },
+            { label: "Owner", value: action.owner, tone: "quiet" },
+          ]
+        : [
+            { label: "Result", value: "Auto-logged", tone: "good" },
+            { label: "Queue row", value: "None", tone: "good" },
+          ],
+      artifact: isExplain
+        ? {
+            kind: "doc",
+            title: `${machineId} · read`,
+            lines: [
+              `${machineId} — ${role}.`,
+              "Critical spec is inside the SOP band this hour.",
+              "Maintenance history shows the last PM and any open work orders.",
+              "No decision needed until the reading breaks its band.",
+            ],
+          }
+        : {
+            kind: "doc",
+            title: `${machineId} · setpoint nudge`,
+            lines: [
+              "Setpoint nudged back inside the ±8% band.",
+              "Logged to the Automated tab with the before/after value.",
+              "No queue row, no sign-off required.",
+            ],
+          },
+      prompts: isExplain
+        ? [`What does the SOP say about ${machineId}?`, "Show maintenance history", "What breaks the band?"]
+        : ["Undo the nudge", "Show the band", "What else is drifting?"],
+    },
+  };
+}

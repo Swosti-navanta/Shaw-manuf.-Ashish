@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Gauge } from "@phosphor-icons/react";
 import {
   AiStar,
   Button,
   DataTable,
   EmptyState,
-  SegmentedControl,
   TableShell,
   type DataTableColumn,
 } from "@navanta-ai/design-system";
@@ -15,12 +15,10 @@ import { usePersona } from "@/context/PersonaContext";
 import { useRun } from "@/context/RunContext";
 import { useScope } from "@/context/ScopeContext";
 import { plantLabel } from "@/types/division";
-import { CATEGORY_OF, LANE_TAB, MAKE_ACTIONS, type MakeAction } from "@/types/action";
+import { CATEGORY_OF, LANE_TAB, MAKE_ACTIONS, SOURCE_LABEL, type MakeAction } from "@/types/action";
 import ActionDeckModal from "./_components/ActionDeckModal";
-import LineHealth from "./_components/LineHealth";
 
 type TabId = "person" | "auto";
-type View = "line" | "queue";
 
 /**
  * Make is a queue of decisions, not a dashboard.
@@ -34,11 +32,16 @@ export default function MakePage() {
   const { plant } = useScope();
   const { profile } = usePersona();
   const { status, workOrderRaised } = useRun();
-  const [view, setView] = useState<View>("line");
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<TabId>("person");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [deck, setDeck] = useState<MakeAction | null>(null);
+  // An analysis view on Performance redirects here with ?action=<id> — the
+  // deck opens on arrival, so the handoff lands on the decision itself.
+  const [deck, setDeck] = useState<MakeAction | null>(() => {
+    const id = searchParams.get("action");
+    return id ? (MAKE_ACTIONS.find((x) => x.id === id) ?? null) : null;
+  });
 
   // The re-sequence row leaves the queue once a person has chosen an option,
   // so the list empties as the shift is worked rather than staying static.
@@ -112,6 +115,53 @@ export default function MakePage() {
             {CATEGORY_OF[row.kind]}
           </span>
         ),
+      },
+      {
+        key: "source",
+        label: "Analysis",
+        width: 128,
+        // Which of the four analyses raised this decision — the queue is
+        // their combined output, so every row names its origin.
+        cell: (row) => (
+          <span
+            className="type-caption inline-flex items-center"
+            style={{
+              padding: "2px 9px",
+              borderRadius: 999,
+              background: "var(--color-iris-50)",
+              border: "1px solid var(--color-iris-200)",
+              color: "var(--color-iris-700)",
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {SOURCE_LABEL[row.source]}
+          </span>
+        ),
+      },
+      {
+        key: "traces",
+        label: "Traces to",
+        width: 150,
+        // The stage and machine behind the decision — the tie back to the
+        // Machine health analysis on Performance.
+        cell: (row) =>
+          row.stage ? (
+            <span className="flex flex-col" style={{ gap: 1 }}>
+              <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
+                {row.stage}
+              </span>
+              {row.machine && (
+                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                  {row.machine}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="type-caption" style={{ color: "var(--ds-text-placeholder, var(--text-muted))" }}>
+              Whole line
+            </span>
+          ),
       },
       {
         key: "raised",
@@ -239,32 +289,17 @@ export default function MakePage() {
             color: "var(--ds-text-primary)",
           }}
         >
-          Line health · Plant 12, Aiken
+          {counts.person > 0
+            ? `${counts.person} decision${counts.person === 1 ? " needs" : "s need"} you this shift`
+            : "Nothing needs you this shift"}
         </h1>
         <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          Rowan watches every stage in real time. What crosses a threshold becomes a decision — that
-          lives in the queue tab. {profile.name} owns the call.
+          One queue, four analyses behind it — Overall, Manufacturing, Machine health and Labor on
+          Performance each raise what needs a person here, with the options already costed.{" "}
+          {profile.name} owns the call.
         </p>
       </header>
 
-      {/* Line health is the machine story; the queue tab is the decisions that
-          rose out of it. One control between them. */}
-      <SegmentedControl
-        value={view}
-        onValueChange={(v) => setView(v as View)}
-        aria-label="Make view"
-        options={[
-          { value: "line", label: "Line health" },
-          {
-            value: "queue",
-            label: counts.person > 0 ? `Decision queue · ${counts.person}` : "Decision queue",
-          },
-        ]}
-      />
-
-      {view === "line" && <LineHealth />}
-
-      {view === "queue" && (
       <TableShell
         title="Decision queue"
         icon={Gauge}
@@ -309,7 +344,6 @@ export default function MakePage() {
           onRowClick={(a) => setDeck(a)}
         />
       </TableShell>
-      )}
 
       {deck && <ActionDeckModal action={deck} onClose={() => setDeck(null)} />}
     </div>

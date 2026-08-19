@@ -11,6 +11,20 @@ import type { DetailKind, Lane } from "@/types/run";
 export type ActionKind = "resequence" | "grade" | "workorder" | "drift" | "report";
 
 /**
+ * Which analysis raised the decision. The queue is the combined output of the
+ * four analyses on Performance — every row names the one it rose out of, and
+ * the analysis view links back here when it wants a person.
+ */
+export type AnalysisSource = "overall" | "manufacturing" | "machine" | "labor";
+
+export const SOURCE_LABEL: Record<AnalysisSource, string> = {
+  overall: "Overall",
+  manufacturing: "Manufacturing",
+  machine: "Machine health",
+  labor: "Labor",
+};
+
+/**
  * What kind of problem this is. A queue mixing rate, quality and maintenance
  * needs the category as a column — it's how you scan for "anything on the
  * machines?" without reading five sentences.
@@ -42,6 +56,14 @@ export interface MakeAction {
   detail: string;
   /** The thing the action is about — drills into its own record. */
   subject: { label: string; kind: DetailKind; id: string };
+  /** The process-flow stage this decision rose out of — the tie back to Line
+   *  health. Null for whole-line work (e.g. shift reports) that no single
+   *  stage owns. */
+  stage?: string;
+  /** The machine on that stage the decision traces to. */
+  machine?: string;
+  /** The analysis this decision rose out of. */
+  source: AnalysisSource;
   /** Which lane it landed in. `person` rows are the queue's reason to exist. */
   lane: Lane;
   /** The agent that raised it. */
@@ -80,6 +102,9 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     detail:
       "Backing 2 is 12% under plan. Every recovery either moves a promised date or splits a shade-critical lot.",
     subject: { label: "DL-4471", kind: "dyelot", id: "DL-4471" },
+    stage: "Coating",
+    machine: "Backing 2",
+    source: "manufacturing",
     lane: "person",
     agent: "Rowan",
     insight: { headline: "Re-sequence · run DL-4471 whole", detail: "+$1,840 · holds both dates" },
@@ -95,6 +120,9 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     detail:
       "Running twice as rough as its normal, with PM already due in 3 days. Held at the limit set for this plant.",
     subject: { label: "Backing 2", kind: "machine", id: "Backing 2" },
+    stage: "Coating",
+    machine: "Backing 2",
+    source: "machine",
     lane: "limit",
     agent: "Rowan",
     insight: { headline: "Create the work order now", detail: "ahead of the PM in 3 days" },
@@ -102,23 +130,14 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     at: "06:41",
   },
   {
-    id: "act-wo-2",
-    kind: "workorder",
-    title: "Bearing temp trending up",
-    detail: "Card 4 bearing 68 °C vs 55 °C baseline — inside limit, worth eyes on it.",
-    subject: { label: "Card 4", kind: "machine", id: "Card 4" },
-    lane: "person",
-    agent: "Rowan",
-    insight: { headline: "Raise a check-in ticket", detail: "before next PM window" },
-    impact: "Watch item",
-    at: "06:30",
-  },
-  {
     id: "act-drift",
     kind: "drift",
     title: "Rate drift inside the alert band",
     detail: "Tufting 3 wobbled within ±8% of plan. Recorded, nobody interrupted.",
     subject: { label: "Tufting 3", kind: "machine", id: "Tufting 3" },
+    stage: "Tufting",
+    machine: "Tufting 3",
+    source: "machine",
     lane: "auto",
     agent: "Rowan",
     insight: { headline: "Logged, nobody interrupted", detail: "inside the ±8% band" },
@@ -126,11 +145,45 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     at: "05:20",
   },
   {
+    id: "act-promise",
+    kind: "resequence",
+    title: "Constraint headroom 8% fwd 4wk — below the promise floor",
+    detail:
+      "Backing 2 belt has 8% forward headroom for the second week running. Every new order promised on this belt now risks a date.",
+    subject: { label: "Backing 2 belt", kind: "machine", id: "Backing 2" },
+    stage: "Coating",
+    source: "overall",
+    lane: "person",
+    agent: "Roll-up",
+    insight: { headline: "Cap new promises on this belt", detail: "until headroom clears 12%" },
+    impact: "Promise ceiling",
+    impactBad: true,
+    at: "06:50",
+  },
+  {
+    id: "act-labor",
+    kind: "workorder",
+    title: "Warping OT/SY broke its band 4 of 6 weeks",
+    detail:
+      "OT$/SY on Warping is $0.056 against a 3wk MA of $0.041. Release times point at sequencing pushing warp late — a scheduling story, not a labor one.",
+    subject: { label: "Warping", kind: "machine", id: "Warper-02" },
+    stage: "Warping",
+    machine: "Warper-02",
+    source: "labor",
+    lane: "person",
+    agent: "Roll-up",
+    insight: { headline: "Rebalance warp release · notify Sawyer", detail: "OT ▲ +38% vs 3wk MA" },
+    impact: "$0.056/SY ▲",
+    impactBad: true,
+    at: "06:20",
+  },
+  {
     id: "act-report",
     kind: "report",
     title: "Handover & downtime reports due",
     detail: "Assembled from the run record — nobody writes these.",
     subject: { label: "Shift A", kind: "batch", id: "B-88214" },
+    source: "manufacturing",
     lane: "auto",
     agent: "Rowan",
     insight: { headline: "Built and sent", detail: "nobody assembled these" },

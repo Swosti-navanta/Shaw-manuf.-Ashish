@@ -649,6 +649,10 @@ export default function ActionDeckModal({
 
   const order = ORDERS["ORD-77310"];
 
+  // The deck can be open on first paint (deep-link from Performance), so it
+  // renders during SSR — where there is no document to portal into.
+  if (typeof document === "undefined") return null;
+
   return createPortal(
     <div
       className="fixed inset-0 z-[1000] flex items-stretch justify-center"

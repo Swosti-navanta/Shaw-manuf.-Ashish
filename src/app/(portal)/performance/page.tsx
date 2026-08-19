@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AiStar, Button, LineChart, SegmentedControl } from "@navanta-ai/design-system";
-import { useScope } from "@/context/ScopeContext";
+import { X } from "@phosphor-icons/react";
 import { useChatPanel } from "@/context/ChatPanelContext";
-import { plantLabel } from "@/types/division";
 import {
   DEFECT_GRID,
   DEFECT_POSITIONS,
   DEFECT_STATIONS,
 } from "@/types/quality";
 import {
+  COMMITMENT_KPIS,
   DOWNTIME_CAUSES,
-  EXEC_KPIS,
   LABOR_KPIS,
+  LABOR_POVA_LINE,
   MARGIN_TREND,
   MFG_KPIS,
   OEE_TREND,
@@ -21,15 +22,23 @@ import {
   OT_BY_EMPLOYEE,
   OT_BY_PROCESS,
   OT_TREND,
-  RISK_BY_CAUSE,
-  RISK_BY_PLANT,
+  POVA_COMPARISONS,
+  POVA_CURRENT_PERIOD,
+  POVA_DETAIL,
+  POVA_PERIODS,
+  POVA_ROWS,
+  POVA_SUMMARY,
+  VARIANCE_BY_PLANT,
   YIELD_TREND,
   type Bar,
   type Kpi,
+  type PovaComparison,
+  type PovaRow,
 } from "@/data/performance-analytics";
-import { explainCauseTask, explainOtDriftTask } from "@/data/performance-flows";
+import { explainOtDriftTask } from "@/data/performance-flows";
+import LineHealth from "./_components/LineHealth";
 
-type View = "exec" | "mfg" | "labor";
+type View = "exec" | "mfg" | "machine" | "labor";
 type LaborTab = "proc" | "cc" | "emp";
 
 const HEAT_RAMP = ["var(--surface-sunken)", "#FEF0C7", "#FEDF89", "#FEC84B", "#F79009", "#D92D20"];
@@ -42,11 +51,25 @@ const CELL_STOP = [0, 1, 4, 5];
  * analytics cards explain themselves through the agent panel.
  */
 export default function PerformancePage() {
-  const { plant } = useScope();
+  const router = useRouter();
   const { startTask } = useChatPanel();
   const agent = "Roll-up";
   const [view, setView] = useState<View>("exec");
   const [ltab, setLtab] = useState<LaborTab>("proc");
+  // POVA's clock — one period, one comparison, governing every view.
+  const [period, setPeriod] = useState(POVA_CURRENT_PERIOD);
+  const [comparison, setComparison] = useState<PovaComparison>("budget");
+  const [povaDrawer, setPovaDrawer] = useState<PovaRow | null>(null);
+  const periodMeta = POVA_PERIODS.find((pp) => pp.id === period) ?? POVA_PERIODS[1];
+
+  // A Because card's CTA routes into the view that answers it.
+  const followCta = (cta: string) => {
+    setPovaDrawer(null);
+    if (/Labor/.test(cta)) setView("labor");
+    else if (/Machine health/.test(cta)) setView("machine");
+    else if (/Manufacturing/.test(cta)) setView("mfg");
+    else if (/Make/.test(cta)) router.push("/make?action=act-promise");
+  };
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
@@ -59,7 +82,7 @@ export default function PerformancePage() {
             color: "var(--ds-text-placeholder, var(--text-muted))",
           }}
         >
-          Performance · Roll-up · {plantLabel(plant)}
+          Performance · Roll-up · All plants
         </span>
         <h1
           style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--ds-text-primary)" }}
@@ -67,8 +90,9 @@ export default function PerformancePage() {
           Where the money is and where the line is hurting
         </h1>
         <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          One toggle — executive (financial, margin, attainment), MFG (OEE, yield, downtime causes)
-          or labor (overtime, the P13 tracker). Every card drills to the surface that can act on it.
+          POVA is the financial read — actual against budget across the eight categories the plant
+          SOPs define. Manufacturing, Machine health and Labor each answer why a category moved.
+          What crosses a threshold becomes a decision on Make.
         </p>
       </header>
 
@@ -77,27 +101,132 @@ export default function PerformancePage() {
         onValueChange={(v) => setView(v as View)}
         aria-label="Performance view"
         options={[
-          { value: "exec", label: "Executive" },
-          { value: "mfg", label: "MFG" },
+          { value: "exec", label: "Overall" },
+          { value: "mfg", label: "Manufacturing" },
+          { value: "machine", label: "Machine health" },
           { value: "labor", label: "Labor" },
         ]}
       />
 
+      {/* The period bar — POVA's clock governs the analytical views. Machine
+          health is live, so it keeps its own realtime/historical toggle. */}
+      {view !== "machine" && (
+        <div
+          className="flex items-center justify-between flex-wrap"
+          style={{
+            gap: 12,
+            padding: "8px 12px",
+            borderRadius: 12,
+            background: "var(--surface-base)",
+            border: "1px solid var(--border-default)",
+            boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
+          }}
+        >
+          <span className="flex items-center" style={{ gap: 10 }}>
+            <SegmentedControl
+              size="sm"
+              value={period}
+              onValueChange={setPeriod}
+              aria-label="Period"
+              options={POVA_PERIODS.map((pp) => ({ value: pp.id, label: pp.label }))}
+            />
+            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
+              {periodMeta.id} · {periodMeta.range}
+            </span>
+          </span>
+          <SegmentedControl
+            size="sm"
+            value={comparison}
+            onValueChange={(v) => setComparison(v as PovaComparison)}
+            aria-label="Comparison"
+            options={POVA_COMPARISONS.map((c) => ({ value: c.id, label: c.label }))}
+          />
+        </div>
+      )}
+
+      {/* Machine health — the live line, moved here from Make. Any action that
+          crosses a threshold redirects to the decision queue with its deck
+          open, because deciding happens on Make, not here. */}
+      {view === "machine" && (
+        <LineHealth onOpenAction={(id) => router.push(`/make?action=${id}`)} />
+      )}
+
       {view === "exec" && (
         <div className="flex flex-col" style={{ gap: 16 }}>
-          <KpiRow kpis={EXEC_KPIS} />
+          {/* Commitment strip — the operational context that explains the
+              variance. Demoted above the spine, not the spine. */}
+          <KpiRow kpis={COMMITMENT_KPIS} />
+
+          {/* POVA summary — the three numbers the period rolls up to. */}
+          <div className="grid" style={{ gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+            {[
+              { k: "Total operating variance", v: POVA_SUMMARY.totalVariance, sub: POVA_SUMMARY.totalPct, bad: true },
+              { k: "Worst category", v: POVA_SUMMARY.worstCategory.split(" · ")[0], sub: POVA_SUMMARY.worstCategory.split(" · ")[1], bad: true },
+              { k: "Cost per SY", v: POVA_SUMMARY.costPerSy.split(" / ")[0], sub: `budget ${POVA_SUMMARY.costPerSy.split(" / ")[1]}` },
+            ].map((t) => (
+              <div
+                key={t.k}
+                className="flex flex-col"
+                style={{
+                  gap: 2,
+                  padding: "13px 14px",
+                  borderRadius: 12,
+                  background: "var(--surface-base)",
+                  border: "1px solid var(--border-default)",
+                  boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
+                }}
+              >
+                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{t.k}</span>
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 600,
+                    letterSpacing: "-0.01em",
+                    lineHeight: 1.15,
+                    color: t.bad ? "var(--text-danger)" : "var(--ds-text-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {t.v}
+                </span>
+                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{t.sub}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* THE POVA TABLE — the core artifact. Eight rows in SOP order,
+              unfavorable first; every row names its factor codes and the one
+              view that answers its "why". */}
+          <Panel
+            title="Plant operating variance · actual vs budget"
+            scope={`${periodMeta.id} · ${comparison === "budget" ? "vs budget" : comparison === "prior" ? "vs prior period" : "vs same period LY"} · click a row for the breakdown`}
+          >
+            <PovaTable
+              rows={POVA_ROWS}
+              onOpen={(r) => setPovaDrawer(r)}
+              onDrill={(r) => {
+                if (r.drillsTo.view) setView(r.drillsTo.view);
+                else if (r.drillsTo.href) router.push(r.drillsTo.href);
+              }}
+            />
+          </Panel>
+
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title="Margin at risk · 12 weeks" scope="from TM1 · Planning Analytics">
-              <Trend series={MARGIN_TREND} unit="k" color="var(--text-danger)" />
-            </Panel>
-            <Panel title="Where the risk is · by plant" scope="this week">
+            <Panel title="Variance vs budget · by plant" scope={`${periodMeta.id} · worst first`}>
               <div className="flex flex-col" style={{ gap: 8 }}>
-                {RISK_BY_PLANT.map((p) => (
+                {VARIANCE_BY_PLANT.map((p) => (
                   <div key={p.plant} className="flex items-center justify-between" style={{ gap: 12 }}>
                     <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>{p.plant}</span>
                     <span
                       className="type-body-medium"
-                      style={{ fontVariantNumeric: "tabular-nums", color: p.hot ? "var(--text-danger)" : "var(--ds-text-primary)" }}
+                      style={{
+                        fontVariantNumeric: "tabular-nums",
+                        color: p.hot
+                          ? "var(--text-danger)"
+                          : p.unfavorable
+                            ? "var(--ds-text-primary)"
+                            : "var(--text-success)",
+                      }}
                     >
                       {p.value}
                     </span>
@@ -105,10 +234,12 @@ export default function PerformancePage() {
                 ))}
               </div>
             </Panel>
+            {/* Forward exposure — a different clock from POVA's backward spend,
+                so it supports the table rather than sitting beside it as a peer. */}
+            <Panel title="Margin at risk · forward exposure" scope="supporting context · from TM1">
+              <Trend series={MARGIN_TREND} unit="k" color="var(--text-danger)" />
+            </Panel>
           </div>
-          <Panel title="Where the risk is going" scope="$142k across five causes · click a cause to explain">
-            <BarList bars={RISK_BY_CAUSE} onExplain={(b) => startTask(explainCauseTask(b, agent))} />
-          </Panel>
         </div>
       )}
 
@@ -116,18 +247,56 @@ export default function PerformancePage() {
         <div className="flex flex-col" style={{ gap: 16 }}>
           <KpiRow kpis={MFG_KPIS} />
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title="OEE · Backing 2 · 12 weeks" scope="Backing 2 is the constraint">
+            <Panel title="OEE · Backing 2 · 12 periods" scope="feeds POVA · Production efficiency">
               <Trend series={OEE_TREND} unit="%" color="var(--text-warning, #F79009)" />
             </Panel>
-            <Panel title="Downtime causes · 12 weeks" scope="hours lost by category">
-              <BarList bars={DOWNTIME_CAUSES} onExplain={(b) => startTask(explainCauseTask(b, agent))} />
+            <Panel title="Downtime causes · 12 periods" scope="hours and dollars · each cause feeds a POVA category">
+              <div className="flex flex-col" style={{ gap: 12 }}>
+                {DOWNTIME_CAUSES.map((b) => (
+                  <div key={b.label} className="flex items-center" style={{ gap: 12 }}>
+                    <span className="flex flex-col shrink-0" style={{ gap: 1, width: 128 }}>
+                      <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>{b.label}</span>
+                      <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{b.sub}</span>
+                    </span>
+                    <span aria-hidden="true" className="flex-1" style={{ height: 10, borderRadius: 999, background: "var(--surface-sunken)" }}>
+                      <span
+                        style={{
+                          display: "block",
+                          height: "100%",
+                          width: `${b.pct}%`,
+                          borderRadius: 999,
+                          background: b.tone === "hot" ? "var(--text-danger)" : b.tone === "ok" ? "var(--text-success)" : "var(--color-iris-500, #7C6BF0)",
+                        }}
+                      />
+                    </span>
+                    <span className="shrink-0 inline-flex items-baseline justify-end" style={{ width: 96, gap: 8 }}>
+                      <span className="type-body-medium" style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}>{b.value}</span>
+                      <span className="type-body" style={{ color: "var(--text-danger)", fontVariantNumeric: "tabular-nums" }}>{b.usd}</span>
+                    </span>
+                    <span
+                      className="type-caption shrink-0"
+                      style={{
+                        padding: "2px 9px",
+                        borderRadius: 999,
+                        background: "var(--color-iris-50)",
+                        border: "1px solid var(--color-iris-200)",
+                        color: "var(--color-iris-700)",
+                        whiteSpace: "nowrap",
+                      }}
+                      title="The POVA category this cause feeds"
+                    >
+                      {b.pova}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </Panel>
           </div>
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title="Defects by station × position" scope="last 4 months · concentrates at edges">
+            <Panel title="Defects by station × position" scope="feeds POVA · Waste and scrap">
               <Heatmap />
             </Panel>
-            <Panel title="Defect rate · Backing 2 · 12 weeks" scope="delamination trend, %">
+            <Panel title="Defect rate · Backing 2 · 12 periods" scope="feeds POVA · Waste and scrap">
               <Trend series={YIELD_TREND} unit="%" color="var(--text-danger)" />
             </Panel>
           </div>
@@ -161,8 +330,12 @@ export default function PerformancePage() {
 
           {ltab === "proc" && (
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-              <Panel title="OT$/SY by process · 12wk" scope="3wk MA · from P13 tracker">
-                <Trend series={OT_TREND} unit="$/SY" color="var(--text-danger)" />
+              <Panel title="OT¢/SY by process · 12wk" scope="3wk MA · from P13 tracker · cents per SY">
+                <Trend
+                  series={OT_TREND.map((pt) => ({ label: pt.label, value: Math.round(pt.value * 1000) / 10 }))}
+                  unit="¢/SY"
+                  color="var(--text-danger)"
+                />
               </Panel>
               <Panel title="Latest week · by process" scope="vs 3wk moving average">
                 <BarList bars={OT_BY_PROCESS} onExplain={(b) => startTask(explainOtDriftTask(b, agent))} />
@@ -202,6 +375,34 @@ export default function PerformancePage() {
             </Panel>
           )}
 
+          {/* The reconciliation line — closes the loop back up to POVA. */}
+          <div
+            className="flex items-center justify-between flex-wrap"
+            style={{
+              gap: 12,
+              padding: "10px 14px",
+              borderRadius: 12,
+              background: "var(--surface-base)",
+              border: "1px solid var(--border-default)",
+              boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
+            }}
+          >
+            <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
+              {LABOR_POVA_LINE}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setView("exec");
+                const row = POVA_ROWS.find((r) => r.category === "Overtime");
+                if (row) setPovaDrawer(row);
+              }}
+            >
+              Open the POVA row
+            </Button>
+          </div>
+
           <div
             className="flex items-start"
             style={{ gap: 9, padding: "12px 14px", borderRadius: 12, background: "var(--color-iris-50)", border: "1px solid var(--color-iris-200)" }}
@@ -214,6 +415,10 @@ export default function PerformancePage() {
             </span>
           </div>
         </div>
+      )}
+
+      {povaDrawer && (
+        <PovaDrawer row={povaDrawer} onFollow={followCta} onClose={() => setPovaDrawer(null)} />
       )}
     </div>
   );
@@ -261,43 +466,22 @@ function KpiRow({ kpis }: { kpis: ReadonlyArray<Kpi> }) {
           >
             {k.value}
           </span>
-          <div className="flex items-center" style={{ gap: 8, marginTop: 2 }}>
-            <span
-              className="type-caption"
-              style={{
-                color: "var(--ds-text-secondary)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                flex: "0 1 auto",
-              }}
-              title={k.detail}
-            >
-              {k.detail}
-            </span>
-            <span style={{ flex: "1 1 40px", minWidth: 40, maxWidth: 72, marginLeft: "auto" }}>
-              <Sparkline points={k.spark} tone={k.tone} />
-            </span>
-          </div>
+          <span
+            className="type-caption"
+            style={{
+              color: "var(--ds-text-secondary)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              marginTop: 2,
+            }}
+            title={k.detail}
+          >
+            {k.detail}
+          </span>
         </div>
       ))}
     </div>
-  );
-}
-
-function Sparkline({ points, tone }: { points: ReadonlyArray<number>; tone?: Kpi["tone"] }) {
-  const max = Math.max(...points, 1);
-  const min = Math.min(...points, 0);
-  const span = max - min || 1;
-  const stroke =
-    tone === "bad" ? "var(--text-danger)" : tone === "warn" ? "var(--text-warning, #F79009)" : tone === "good" ? "var(--text-success)" : "var(--color-iris-500, #7C6BF0)";
-  const d = points
-    .map((p, i) => `${(i / (points.length - 1)) * 100},${20 - ((p - min) / span) * 18 - 1}`)
-    .join(" ");
-  return (
-    <svg viewBox="0 0 100 20" preserveAspectRatio="none" style={{ width: "100%", height: 20 }} aria-hidden="true">
-      <polyline fill="none" stroke={stroke} strokeWidth={1.4} points={d} />
-    </svg>
   );
 }
 
@@ -468,5 +652,205 @@ function Panel({ title, scope, children }: { title: string; scope?: string; chil
       </div>
       <div style={{ padding: 16 }}>{children}</div>
     </section>
+  );
+}
+
+
+/* ── POVA table — the core artifact of the Overall view ──────────────────── */
+
+function PovaTable({
+  rows,
+  onOpen,
+  onDrill,
+}: {
+  rows: ReadonlyArray<PovaRow>;
+  onOpen: (r: PovaRow) => void;
+  onDrill: (r: PovaRow) => void;
+}) {
+  const TH: React.CSSProperties = {
+    textAlign: "left",
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: "var(--ds-text-placeholder, var(--text-muted))",
+    fontWeight: 500,
+    padding: "0 12px 8px",
+    whiteSpace: "nowrap",
+  };
+  const TD: React.CSSProperties = { padding: "10px 12px", verticalAlign: "middle" };
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 880 }}>
+        <thead>
+          <tr>
+            <th className="type-caption" style={TH}>Category</th>
+            <th className="type-caption" style={{ ...TH, textAlign: "right" }}>Actual</th>
+            <th className="type-caption" style={{ ...TH, textAlign: "right" }}>Budget</th>
+            <th className="type-caption" style={{ ...TH, textAlign: "right" }}>Variance</th>
+            <th className="type-caption" style={{ ...TH, textAlign: "right" }}>Var %</th>
+            <th className="type-caption" style={{ ...TH, textAlign: "right" }}>$/SY act · bud</th>
+            <th className="type-caption" style={{ ...TH, textAlign: "right" }}>Drills to</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const ink = r.unfavorable ? "var(--text-danger)" : "var(--text-success)";
+            return (
+              <tr
+                key={r.category}
+                onClick={() => onOpen(r)}
+                className="transition-colors hover:bg-[var(--surface-raised)]"
+                style={{ borderTop: "1px solid var(--border-light)", cursor: "pointer" }}
+                title="Open the category breakdown"
+              >
+                <td style={TD}>
+                  <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>{r.category}</span>
+                </td>
+                <td className="type-body" style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ds-text-primary)" }}>{r.actual}</td>
+                <td className="type-body" style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ds-text-secondary)" }}>{r.budget}</td>
+                <td className="type-body-medium" style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums", color: ink }}>{r.variance}</td>
+                <td className="type-body" style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums", color: ink }}>{r.variancePct}</td>
+                <td className="type-body" style={{ ...TD, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ds-text-primary)" }}>{r.perSy}</td>
+                <td style={{ ...TD, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+                  {r.drillsTo.view || r.drillsTo.href ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDrill(r)}
+                      title={r.drillsTo.note ? `⚠ ${r.drillsTo.note}` : undefined}
+                    >
+                      {r.drillsTo.label}
+                      {r.drillsTo.note ? " ⚠" : ""}
+                    </Button>
+                  ) : (
+                    <span className="type-caption" style={{ color: "var(--ds-text-placeholder, var(--text-muted))" }}>—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ── POVA category drawer — variance detail + the Because cards ──────────── */
+
+function PovaDrawer({
+  row,
+  onFollow,
+  onClose,
+}: {
+  row: PovaRow;
+  onFollow: (cta: string) => void;
+  onClose: () => void;
+}) {
+  const detail = POVA_DETAIL[row.category];
+  const ink = row.unfavorable ? "var(--text-danger)" : "var(--text-success)";
+  return (
+    <div
+      className="fixed inset-0 z-[1000] flex justify-end"
+      style={{ background: "rgba(15, 16, 35, 0.4)" }}
+      onClick={onClose}
+    >
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={`POVA · ${row.category}`}
+        className="flex flex-col h-full"
+        style={{
+          width: "min(460px, 92vw)",
+          background: "var(--surface-base)",
+          boxShadow: "-16px 0 48px rgba(15,16,35,.22)",
+          overflowY: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-start justify-between shrink-0"
+          style={{ gap: 12, padding: "16px 20px", borderBottom: "1px solid var(--border-default)" }}
+        >
+          <div className="flex flex-col" style={{ gap: 3 }}>
+            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--ds-text-primary)" }}>{row.category}</span>
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              {row.actual} actual · {row.budget} budget
+            </span>
+            <span className="type-body-medium" style={{ color: ink, fontVariantNumeric: "tabular-nums" }}>
+              {row.variance} · {row.variancePct}
+            </span>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+            <X size={16} weight="bold" />
+          </Button>
+        </div>
+
+        <div className="flex flex-col flex-1" style={{ padding: 20, gap: 16 }}>
+          {detail ? (
+            <>
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <span
+                  className="type-caption"
+                  style={{ letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ds-text-placeholder, var(--text-muted))" }}
+                >
+                  Where it concentrates
+                </span>
+                <div style={{ borderRadius: 10, border: "1px solid var(--border-default)", overflow: "hidden" }}>
+                  {detail.concentration.map((c, i) => (
+                    <div
+                      key={c.label}
+                      className="flex items-center justify-between"
+                      style={{
+                        gap: 12,
+                        padding: "9px 14px",
+                        borderBottom: i < detail.concentration.length - 1 ? "1px solid var(--border-light)" : undefined,
+                      }}
+                    >
+                      <span className="type-caption shrink-0" style={{ color: "var(--ds-text-secondary)" }}>{c.label}</span>
+                      <span className="type-body" style={{ color: "var(--ds-text-primary)", textAlign: "right" }}>{c.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <span
+                  className="type-caption"
+                  style={{ letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ds-text-placeholder, var(--text-muted))" }}
+                >
+                  Because
+                </span>
+                {detail.because.map((bc) => (
+                  <div
+                    key={bc.line}
+                    className="flex flex-col"
+                    style={{
+                      gap: 8,
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      background: "var(--color-iris-50)",
+                      border: "1px solid var(--color-iris-200)",
+                    }}
+                  >
+                    <span className="type-body" style={{ color: "var(--ds-text-primary)", lineHeight: 1.5 }}>
+                      {bc.line}
+                    </span>
+                    <Button variant="outline" size="sm" style={{ alignSelf: "flex-start" }} onClick={() => onFollow(bc.cta)}>
+                      {bc.cta}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <span className="type-body" style={{ color: "var(--ds-text-secondary)", lineHeight: 1.55 }}>
+              {row.unfavorable
+                ? "No concentration recorded for this category this period — the variance is spread thin rather than driven by one place."
+                : "Favorable this period — nothing to chase."}
+              {row.drillsTo.note ? ` ⚠ ${row.drillsTo.note}.` : ""}
+            </span>
+          )}
+        </div>
+      </aside>
+    </div>
   );
 }
