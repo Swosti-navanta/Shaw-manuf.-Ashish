@@ -1,50 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AiStar, Button, Select, Tabs } from "@navanta-ai/design-system";
+import { AiStar, Button, PanelInfoGrid, Select, Tabs } from "@navanta-ai/design-system";
 import { ArrowUUpLeft, ArrowsClockwise, Check, X } from "@phosphor-icons/react";
 import { useYarn } from "@/context/YarnContext";
-import { APPROVAL_LABEL, type ApprovalRow } from "@/types/yarn";
-import DrillLink from "@/components/ui/DrillLink";
-import { PackageAlignment, LotTracebility, ThreadingSetUp } from "./CreelPlanPanels";
 import {
-  ApprovalQueuePanel,
-  CreelUtilisation,
-  LotToOrderMapping,
-  RunOutSpreadPanel,
-} from "./YarnLotPanels";
+  APPROVAL_LABEL,
+  CREEL,
+  WHOLE_VS_SPLIT,
+  type ApprovalRow,
+  traceFor,
+  type TraceStep,
+} from "@/types/yarn";
+import YarnCone from "@/components/ui/YarnCone";
+import DrillLink from "@/components/ui/DrillLink";
+import CreelSequence from "./CreelSequence";
 
-/** The panels a deck can show.
- *
- *  Modal 1 (yarn lot) and Modal 2 (creel plan) are the same shell over two
- *  disjoint tab sets — the header, Sable's read and the signature band are
- *  identical, and only the evidence differs. One component with two tab sets
- *  rather than two modals: the approve/return wiring is the part that must not
- *  drift, and duplicating it is how it does. */
-type DeckTab =
-  // Modal 1 · Yarn Lot
-  | "mapping"
-  | "utilisation"
-  | "spread"
-  | "queue"
-  // Modal 2 · Creel Plan
-  | "alignment"
-  | "threading"
-  | "trace";
-
-const YARN_LOT_TABS: { id: DeckTab; label: string }[] = [
-  { id: "mapping", label: "Lot to Order Mapping" },
-  { id: "utilisation", label: "Creel Utilisation" },
-  { id: "spread", label: "Run-Out Spread & Waste" },
-  { id: "queue", label: "Approval Queue" },
-];
-
-const CREEL_PLAN_TABS: { id: DeckTab; label: string }[] = [
-  { id: "alignment", label: "Package Alignment" },
-  { id: "threading", label: "Threading Set-Up" },
-  { id: "trace", label: "Lot Tracebility" },
-];
+type DeckTab = "formula" | "checks" | "sequence" | "tradeoff" | "origin";
 
 /** Why a person sends a proposal back. A free-text note would be unreadable
  *  in a queue and unusable as a signal to the agent; a fixed reason is both. */
@@ -76,7 +49,15 @@ export default function ApprovalDeckModal({
   const [reason, setReason] = useState(RETURN_REASONS[0]);
   const [returning, setReturning] = useState(false);
 
-  const tabs = approval.family === "creelplan" ? CREEL_PLAN_TABS : YARN_LOT_TABS;
+  const tabs = useMemo(() => {
+    const t: { id: DeckTab; label: string }[] = [];
+    if (approval.formula) t.push({ id: "formula", label: "The recipe" });
+    t.push({ id: "checks", label: "What Sable checked" });
+    if (approval.kind === "sequence") t.push({ id: "sequence", label: "Run order" });
+    if (approval.kind === "sizing") t.push({ id: "tradeoff", label: "Whole vs split" });
+    t.push({ id: "origin", label: "Where it came from" });
+    return t;
+  }, [approval]);
 
   const [tab, setTab] = useState<DeckTab>(tabs[0].id);
 
@@ -109,9 +90,14 @@ export default function ApprovalDeckModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex items-start justify-between shrink-0"
-          style={{ gap: 16, padding: "16px 20px", borderBottom: "1px solid var(--border-default)" }}
+          className="flex items-start shrink-0"
+          style={{ gap: 12, padding: "16px 20px", borderBottom: "1px solid var(--border-default)" }}
         >
+          {/* The lot's cone, tinted — the same mark the board uses, so a lot
+              looks like the same object wherever it turns up. */}
+          <span className="shrink-0" style={{ paddingTop: 2 }}>
+            <YarnCone colour={approval.swatch.colour} height={34} />
+          </span>
           <div className="flex flex-col min-w-0" style={{ gap: 6 }}>
             <span style={{ fontSize: 18, fontWeight: 600, color: "var(--ds-text-primary)" }}>
               {approval.title}
@@ -125,7 +111,13 @@ export default function ApprovalDeckModal({
               </span>
             </span>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close"
+            style={{ marginLeft: "auto" }}
+          >
             <X size={16} weight="bold" />
           </Button>
         </div>
@@ -155,6 +147,11 @@ export default function ApprovalDeckModal({
                   {approval.escalation}
                 </p>
               </div>
+
+              {/* The figures the signature actually commits — read before the
+                  recommendation, because "how much am I committing" is the
+                  question a person asks first. */}
+              <DeckKpis approval={approval} />
 
               {state ? (
                 <SettledBand
@@ -191,21 +188,130 @@ export default function ApprovalDeckModal({
               onChange={(id) => setTab(id as DeckTab)}
             />
 
-            {/* Modal 1 · Yarn Lot */}
-            {tab === "mapping" && <LotToOrderMapping />}
-            {tab === "utilisation" && <CreelUtilisation />}
-            {tab === "spread" && <RunOutSpreadPanel />}
-            {tab === "queue" && <ApprovalQueuePanel />}
+            {tab === "formula" && approval.formula && <Formula lines={approval.formula} />}
 
-            {/* Modal 2 · Creel Plan */}
-            {tab === "alignment" && <PackageAlignment />}
-            {tab === "threading" && <ThreadingSetUp />}
-            {tab === "trace" && <LotTracebility />}
+            {tab === "checks" && (
+              <div className="flex flex-col" style={{ gap: 10 }}>
+                <PanelInfoGrid
+                  title="What Sable checked before proposing"
+                  rows={approval.checks.map((c) => ({
+                    label: c.label,
+                    value: (
+                      <span
+                        style={{ color: c.pass ? "var(--ds-text-primary)" : "var(--text-danger)" }}
+                      >
+                        {c.result}
+                      </span>
+                    ),
+                  }))}
+                />
+                <p
+                  className="type-caption"
+                  style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
+                >
+                  A failed check isn&apos;t a blocker — it&apos;s the reason this reached you. Sable
+                  states what it couldn&apos;t settle rather than hiding it behind a confidence
+                  score.
+                </p>
+              </div>
+            )}
+
+            {tab === "sequence" && (
+              <div className="flex flex-col" style={{ gap: 10 }}>
+                <CreelSequence stops={CREEL} />
+                <p
+                  className="type-caption"
+                  style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
+                >
+                  Running light to dark keeps each purge cheap. The last step reverses that to hold
+                  a fixed install date, and a full purge is what it costs.
+                </p>
+              </div>
+            )}
+
+            {tab === "tradeoff" && <Tradeoff />}
+
+            {tab === "origin" && (
+              <div className="flex flex-col" style={{ gap: 10 }}>
+                <TraceChain steps={traceFor(approval)} />
+                <p
+                  className="type-caption"
+                  style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
+                >
+                  {approval.genealogy.batch
+                    ? "This is the chain a claim gets traced back along, months later — which is why what you sign here is worth recording."
+                    : "The chain stops at the dye lot because nothing has run yet. Most of what Sable proposes is an instruction for product that doesn't exist, which is exactly why it can't sign it."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * What a signature commits, as four figures.
+ *
+ * A person approving a lot is committing fibre, tank time and money, and the
+ * deck used to state those only in prose. Four numbers across the top answer
+ * "how much" before the recommendation asks for a decision.
+ */
+function DeckKpis({ approval }: { approval: ApprovalRow }) {
+  const dye = approval.tab === "dye" || approval.subject.kind === "dyelot";
+  const cells: Array<{ label: string; value: string; sub?: string }> = [
+    { label: "Value at stake", value: `$${approval.value.toLocaleString()}` },
+    { label: dye ? "Commits" : "Committing", value: approval.qty, sub: "of the lot" },
+    { label: "Covers", value: approval.covers },
+    {
+      label: dye ? "Built from" : "Received",
+      value: dye ? approval.yarnLot : approval.received ?? approval.grade ?? "—",
+    },
+  ];
+
+  return (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`,
+        gap: 1,
+        background: "var(--border-light)",
+        borderTop: "1px solid var(--border-light)",
+        borderBottom: "1px solid var(--border-light)",
+      }}
+    >
+      {cells.map((c) => (
+        <div
+          key={c.label}
+          className="flex flex-col"
+          style={{ gap: 2, padding: "10px 16px", background: "var(--surface-base)" }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              color: "var(--ds-text-placeholder, var(--text-muted))",
+            }}
+          >
+            {c.label}
+          </span>
+          <span
+            className="type-body-medium"
+            style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
+          >
+            {c.value}
+          </span>
+          {c.sub && (
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              {c.sub}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -231,9 +337,6 @@ function ApproveBand({
         </span>
         <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
           {insight.headline}
-        </span>
-        <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-          Sable never approves its own proposal — this one is always yours.
         </span>
       </div>
       <div className="flex items-center flex-wrap" style={{ gap: 8 }}>
@@ -349,3 +452,274 @@ function SettledBand({
   );
 }
 
+/* ─── Evidence ──────────────────────────────────────────────────────────── */
+
+/**
+ * The recipe, standard against proposed.
+ *
+ * Unchanged lines are kept and shown flat. A diff that only lists what moved
+ * reads as "three things changed"; the full recipe with three things moved
+ * reads as "most of this is the recipe you already trust" — which is the
+ * actual argument for signing it.
+ */
+function Formula({ lines }: { lines: ReadonlyArray<{ dyestuff: string; standard: string; proposed: string; delta?: string }> }) {
+  return (
+    <div style={{ borderRadius: 12, overflow: "hidden", background: "var(--surface-raised)" }}>
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: "1fr 96px 96px 84px",
+          gap: 12,
+          padding: "10px 16px",
+          borderBottom: "1px solid var(--border-default)",
+        }}
+      >
+        {["Dyestuff", "Standard", "Proposed", "Change"].map((h, i) => (
+          <span
+            key={h}
+            className="type-caption"
+            style={{ color: "var(--ds-text-secondary)", textAlign: i === 0 ? "left" : "right" }}
+          >
+            {h}
+          </span>
+        ))}
+      </div>
+      {lines.map((l, i) => (
+        <div
+          key={l.dyestuff}
+          className="grid"
+          style={{
+            gridTemplateColumns: "1fr 96px 96px 84px",
+            gap: 12,
+            padding: "11px 16px",
+            borderBottom: i < lines.length - 1 ? "1px solid var(--border-light)" : undefined,
+          }}
+        >
+          <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
+            {l.dyestuff}
+          </span>
+          <span
+            className="type-body"
+            style={{
+              textAlign: "right",
+              color: "var(--ds-text-secondary)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {l.standard}
+          </span>
+          <span
+            className="type-body"
+            style={{
+              textAlign: "right",
+              fontWeight: l.delta ? 600 : 400,
+              color: "var(--ds-text-primary)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {l.proposed}
+          </span>
+          <span
+            className="type-body"
+            style={{
+              textAlign: "right",
+              color: l.delta ? "var(--color-iris-700)" : "var(--ds-text-placeholder, var(--text-muted))",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {l.delta ?? "—"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Whole against split, read-only.
+ *
+ * The decision itself lives in Make, where it has a cost and a button. This
+ * is the yarn-side arithmetic behind it. Two surfaces offering the same
+ * decision is how a demo loses a room — and how a real user ends up making it
+ * twice.
+ */
+function Tradeoff() {
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <TradeoffCard
+          title="Keep whole"
+          tag="RECOMMENDED"
+          tone="success"
+          points={WHOLE_VS_SPLIT.whole}
+        />
+        <TradeoffCard title="Split across two dye runs" tag="RISK" tone="danger" points={WHOLE_VS_SPLIT.split} />
+      </div>
+      <p className="type-caption" style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}>
+        These are the numbers behind Rowan&apos;s Option A and B. The call is made on Make, where it
+        carries a changeover cost — Sable only sizes what the call implies.
+      </p>
+    </div>
+  );
+}
+
+function TradeoffCard({
+  title,
+  tag,
+  tone,
+  points,
+}: {
+  title: string;
+  tag: string;
+  tone: "success" | "danger";
+  points: ReadonlyArray<string>;
+}) {
+  const ink = tone === "success" ? "var(--text-success)" : "var(--text-danger)";
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        gap: 8,
+        padding: 14,
+        borderRadius: 12,
+        background: tone === "success" ? "var(--surface-success)" : "var(--surface-danger)",
+      }}
+    >
+      <span className="flex items-baseline justify-between" style={{ gap: 12 }}>
+        <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
+          {title}
+        </span>
+        <span
+          style={{ fontSize: 10, letterSpacing: "0.06em", fontWeight: 600, color: ink }}
+        >
+          {tag}
+        </span>
+      </span>
+      <span className="flex flex-col" style={{ gap: 5 }}>
+        {points.map((p) => (
+          <span key={p} className="flex" style={{ gap: 8 }}>
+            <span aria-hidden="true" style={{ color: "var(--ds-text-secondary)" }}>
+              –
+            </span>
+            <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
+              {p}
+            </span>
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The lot chain behind one proposal, as a spine.
+ *
+ * An id in a box tells you nothing the row above didn't, so each stage carries
+ * what it actually is — how much fibre arrived, how much was committed, what
+ * came off the line. The stages sit on a shared rule so the chain reads as one
+ * continuous thing rather than three cards that happen to be adjacent.
+ *
+ * The chain is drawn forward, the order it was made in. The copy handles the
+ * fact that a claim walks it backwards.
+ *
+ * Per-approval, not page-level: each proposal is built from a different yarn
+ * lot, so one chain on the page would be true of a single row and quietly
+ * wrong for the rest. A stage that hasn't happened is dashed and says so —
+ * most of what Sable proposes is an instruction for product that doesn't
+ * exist, and the gap is the point rather than an omission.
+ */
+/**
+ * Where a lot has been, stage by stage, with the machine named at each one.
+ *
+ * The chain used to be three cards — yarn lot, dye lot, batch — which said what
+ * the lot *is* but not where it has been. "Which belt ran this" is the first
+ * question asked when a claim comes back, and it was the one thing the panel
+ * couldn't answer.
+ *
+ * Vertical, because five stages each carrying a machine and a timestamp is a
+ * column of records rather than a diagram. Stages that haven't happened are
+ * drawn hollow: most of what Sable proposes is an instruction for product that
+ * doesn't exist yet, so a chain that stops early is the normal case, and saying
+ * so plainly beats a gap that reads as missing data.
+ */
+function TraceChain({ steps }: { steps: ReadonlyArray<TraceStep> }) {
+  return (
+    <div className="flex flex-col">
+      {steps.map((step, i) => {
+        const last = i === steps.length - 1;
+        return (
+          <div key={step.stage} className="flex" style={{ gap: 12 }}>
+            <div className="flex flex-col items-center" style={{ width: 12 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 11,
+                  height: 11,
+                  borderRadius: "50%",
+                  marginTop: 4,
+                  background: step.done ? "var(--color-iris-500, #7C5CFF)" : "var(--surface-base)",
+                  boxShadow: step.done
+                    ? "0 0 0 3px var(--color-iris-100)"
+                    : "inset 0 0 0 1px var(--border-default)",
+                }}
+              />
+              {!last && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    flex: 1,
+                    width: 1,
+                    marginTop: 2,
+                    background: "var(--border-default)",
+                  }}
+                />
+              )}
+            </div>
+
+            <div
+              className="flex flex-col"
+              style={{ gap: 2, paddingBottom: last ? 0 : 16, flex: 1, minWidth: 0 }}
+            >
+              <span className="flex items-baseline justify-between" style={{ gap: 10 }}>
+                <span className="inline-flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
+                  <span
+                    className="type-body-medium"
+                    style={{
+                      color: step.done ? "var(--ds-text-primary)" : "var(--ds-text-secondary)",
+                    }}
+                  >
+                    {step.stage}
+                  </span>
+                  {step.id && (
+                    <span className="type-caption" style={{ color: "var(--link-color)" }}>
+                      {step.id}
+                    </span>
+                  )}
+                </span>
+                <span
+                  className="type-caption shrink-0"
+                  style={{ color: "var(--ds-text-secondary)" }}
+                >
+                  {step.at}
+                </span>
+              </span>
+
+              {/* The machine — the first thing asked when a claim comes back. */}
+              {step.where && (
+                <span
+                  className="type-caption"
+                  style={{ color: "var(--ds-text-primary)", fontWeight: 500 }}
+                >
+                  {step.where}
+                </span>
+              )}
+              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                {step.detail}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

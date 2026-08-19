@@ -102,6 +102,18 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     at: "06:41",
   },
   {
+    id: "act-wo-2",
+    kind: "workorder",
+    title: "Bearing temp trending up",
+    detail: "Card 4 bearing 68 °C vs 55 °C baseline — inside limit, worth eyes on it.",
+    subject: { label: "Card 4", kind: "machine", id: "Card 4" },
+    lane: "person",
+    agent: "Rowan",
+    insight: { headline: "Raise a check-in ticket", detail: "before next PM window" },
+    impact: "Watch item",
+    at: "06:30",
+  },
+  {
     id: "act-drift",
     kind: "drift",
     title: "Rate drift inside the alert band",

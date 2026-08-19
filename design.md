@@ -56,6 +56,100 @@ numbers competing at the edge of the screen. The Overview inbox already
 aggregates every count into one ranked list — the rail says where things are,
 the inbox says what to do.
 
+## 2b. The executive dashboard (`/overview`)
+
+Five tiles, three charts, then the inbox. Order is the argument: the tiles
+answer *are we alright*, the charts answer *why*, the inbox answers *what do I
+do*. Opening with a work queue would make it a supervisor's screen; ending
+without one would make it a report.
+
+**Every figure is derived from the page that owns it** — margin from Quality's
+bridge, claims from its queue, scheduling from Sawyer's backlog, approvals from
+Sable's. A roll-up that keeps its own copy of a number will drift from the page
+it came from, and whoever spots it stops trusting both.
+
+Chart form is chosen per question, not per house style:
+
+| Question | Form | Why not the obvious alternative |
+| --- | --- | --- |
+| Yarn output vs critical | Bullet | Built for measure-vs-target-vs-band. A gauge or donut spends far more ink and can't show target and floor at once. |
+| Margin, yield, claims | Signed delta vs last week | A seven-point sparkline in 20px is a shape, not a reading. `−1.6k wk` is the thing the shape was gesturing at, and it says which direction is *good* — claims falling and yield falling are not the same news. |
+| Machine health | Stacked bars by cause + cumulative line + PM band | Two questions. *Why is it stopping* is a composition summing to each period's total ⇒ stacked bar. *Is it getting worse* is a running total against a budget ⇒ line, on its own axis because minutes-per-period and minutes-accumulated share a unit but not a scale. The split is what earns the chart: one bar of "downtime" says the line is unhealthy, split by cause it says material-out is the half that's growing — a yarn problem wearing a machine's clothes. |
+| Plant expected vs actual | DS table, sorted by money at risk | Six plants × two figures is a *reading* task before a comparison one, and it sorts. It carried a dumbbell "gap" column drawing how far apart the two volumes were; that came out — a picture of volume is an operations answer to an executive question. The columns that replaced it are **At risk** and **Recovery spend**. |
+| Belt performance, all three | Grouped bars — planned vs achieved, per belt | Each belt is compared against *its own* plan inside its own group, so the different standards (520/420/610 yd/hr) never share a scale. **Planned is a diagonal hatch, not a flat fill** — the texture reads as "the target, not the thing" and stays distinct from achieved without relying on colour, legible in grayscale. **Achieved is a top-lit gradient** (iris when on plan, deep red when short) for depth and to flag the miss before a label is read. Recharts can't render pattern/gradient fills in its own legend (separate SVG root), so the legend keys are drawn by hand to match, and the tooltip's item/label styles are forced to primary text — the default muted grey was unreadable. |
+
+**Five cards, one row.** `KpiGrid` tops out at three columns and folds
+responsively below that, so the row is set with an inline
+`grid-template-columns` — the only override that beats its classes at every
+breakpoint. Detail lines are written to about thirty characters to survive the
+narrower cell; the card keeps the full string on its own `title`.
+
+**The agent card carries the star.** "Resolved by the engine" is the one tile
+reporting on the agents rather than on the plant, so it takes the `AiStar` used
+to mark them everywhere else. The DS card exposes no icon slot — only the
+standard Info glyph — so the star is positioned over it and the title row
+indented (DS override 5).
+
+**The tiles are `KpiGrid` + `KpiBreakdownCard`, and the heading is
+`PageHeading`.** An earlier version hand-rolled a local `Tile` and had quietly
+reinvented the card frame, the trend badge and the grid — three things the DS
+already owns, and three places for this page to drift from every other surface.
+
+`KpiBreakdownCard` over `KpiStatCard` because the stat card's trend badge reads
+the *sign* of a number, and the sign alone is not the news: claims falling and
+yield falling are opposite things. The movement joins the detail line instead,
+and `.kpi-alert` turns that line red where what it says is bad (DS override 4 in
+`globals.css` — the card has no tone prop).
+
+**Margin and on-time delivery lead.** Those are the two an operations director
+is held to: one is the money, the other is the only figure on the page a
+customer would recognise. Everything else — output, yield, downtime — is the
+plant talking to itself.
+
+**"Resolved by the engine" is the product's own scoreboard**, and the one tile
+no conventional manufacturing dashboard would carry: 87.1%, 128 of 147, trended
+against last week. It is also what the Thresholds dial moves — widen a limit
+and it rises, and the question to ask next is whether claims rose with it. The
+static "N resolved automatically" strip at the foot of the page went when this
+arrived: same claim, no trend, weaker.
+
+**Margin earned leads, margin at risk follows it.** Shown alone, "$41.2k at
+risk" reads as a loss. Next to "$1.24m earned" it reads as what it is — the
+share of a good week still in question. A percentage also always carries its
+base: yield is `94.1% of 2,940 lin yd`, because a ratio without the quantity it
+is a ratio *of* cannot be sized.
+
+**Scheduling has no tile.** It was there as "N of M placed" and came out: that
+moves every time somebody drags a bar, and an executive can do nothing with it.
+The scheduling question worth this row is whether promised dates are at risk —
+a commitment, not a queue depth — and that isn't modelled yet.
+
+**The plant table is money, not yardage.** Shortfall is valued at contribution,
+not list, because the fibre for a yard never made is also never bought. `At
+risk` is exposure and `Recovery spend` is what has already been committed
+against it — one is a forecast, the other is a fact, and merging them would
+hide which. Sorting defaults to money rather than percentage: a small plant
+missing 5% and a large one missing 3% are not in the order their percentages
+suggest.
+
+**There is no inbox.** It carried one — every agent's queue counted and routed
+— and that is a supervisor's screen: each line is a job, and none of them are
+this reader's. The automation strip stays, because "the engine cleared these
+and interrupted nobody" is the one operational fact an executive can act on.
+
+**Machine health is downtime, not vibration, and it is per machine.** The first
+version plotted vibration as a trend; the plant doesn't track that — vibration
+is a spot reading, and charting it was inventing data to fill a shape. The card
+carries a machine selector across the top, each machine showing its own
+minutes-lost so the choice is informed before it is made. The constraint is
+starred and open by default — it is the one whose downtime costs the whole
+plant — but the others are there because "how are the machines" also means
+"confirm the rest are fine", and a card that showed only the worst could never
+answer that. The reasons in the stack are Make's own four causes.
+
+The in-cell dumbbell is hand-built in CSS: two dots and a segment on a shared
+scale, which `left: %` already draws.
+
 ## 3. Division & plant — a filter, not a scope
 
 Defined in `src/types/division.ts`, read through `useScope()`.
@@ -441,6 +535,29 @@ Conventions specific to this surface:
   risk because grading is damage control. Yarn opens with money kept, because
   sizing a lot correctly is the one thing in the product that pays before
   anything has gone wrong.
+
+### Yarn is two queues, not one
+
+Sable brings two jobs, and they became two tabs because they are decisions
+about two different objects:
+
+- **Yarn lot → order** — a *supply* decision, made before any colour exists:
+  which draw of undyed fibre serves which orders. Columns: grade, received,
+  allocating-to, committing.
+- **Dye lot → approve** — a *shade* decision against a standard: does this
+  recipe hit tolerance. Columns: shade ΔE, built-from, commits, covers.
+
+They share the decision-queue shape but not their columns, so a filter on one
+list would have meant half the columns blank in half the rows. Tabs keep each
+set honest.
+
+**The swatch distinguishes by shape, not only colour.** A yarn lot is drawn as
+a wound **cone** — the package that sits on the creel — in a natural greige
+tone. A dye lot is a hard-edged square of the actual dyed shade — a
+finished colour with a boundary, which is what the lot commits to. The two read
+apart in grayscale and for anyone who can't separate the hues, so `Y-30918`
+never wears a colour that implies it is dyed, and `DL-4471` never wears one that
+implies it isn't. Nothing wears a swatch that fits neither.
 
 ## 8. Two inline-style traps
 

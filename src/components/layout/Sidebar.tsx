@@ -35,7 +35,7 @@ type NavDef = {
 // Grouped the way the shift actually splits: what's waiting on a person,
 // then the plan behind it, then the limits that govern both.
 const INBOX_ITEMS: NavDef[] = [
-  { name: "Overview", href: "/overview", icon: SquaresFour, agent: "Inbox" },
+  { name: "Executive dashboard", href: "/overview", icon: SquaresFour, agent: "Roll-up" },
 ];
 
 const FLOOR_ITEMS: NavDef[] = [

@@ -1,6 +1,18 @@
 "use client";
 
 import { Button, PanelInfoGrid } from "@navanta-ai/design-system";
+import {
+  ArrowsLeftRight,
+  Buildings,
+  CalendarBlank,
+  ClockCountdown,
+  CurrencyDollar,
+  Drop,
+  LockSimple,
+  Path,
+  Ruler,
+  Stack,
+} from "@phosphor-icons/react";
 import type { DetailTarget } from "@/context/DetailDrawerContext";
 import { useDetailDrawer } from "@/context/DetailDrawerContext";
 import { useRun } from "@/context/RunContext";
@@ -392,44 +404,54 @@ function OrderDetail({ id }: { id: string }) {
       <Lead tone={o.risk} verdict={o.headline} detail={o.detail} />
 
       <PanelInfoGrid
-          title="Order"
-          rows={[
-            { label: "Customer", value: `${o.customer} · ${o.city}` },
-            { label: "Product", value: RUN.style },
-            { label: "Quantity", value: `${o.qty.toLocaleString()} lin yd` },
-            { label: "Order value", value: `$${Math.round(o.qty * PRICING.first).toLocaleString()}` },
-            { label: "Dye lot", value: <DrillLink kind="dyelot" id={DYE_LOT.id} /> },
-          ]}
-        />
+        title="Order"
+        rows={[
+          { label: "Product", value: RUN.style, icon: Stack },
+          { label: "Quantity", value: `${o.qty.toLocaleString()} lin yd`, icon: Ruler },
+          {
+            label: "Order value",
+            value: `$${Math.round(o.qty * PRICING.first).toLocaleString()}`,
+            icon: CurrencyDollar,
+          },
+          { label: "Dye lot", value: DYE_LOT.id, icon: Drop },
+          { label: "Customer", value: o.customer, icon: Buildings },
+        ]}
+      />
 
       <PanelInfoGrid
-          title="Commitment"
-          rows={[
-            { label: "Promised", value: o.promised },
-            {
-              label: "Type",
-              value: o.fixed ? "Fixed install · crew booked" : "Movable ± a few days",
-            },
-            { label: "Current slot", value: o.risk === "info" ? "Not yet placed" : "Backing 2 · slot 2" },
-            {
-              label: "Projected finish",
-              value:
-                o.risk === "info" ? (
-                  "On time"
-                ) : (
-                  <Strong tone="bad">{`${RUN.projectedSlip} · margin tight`}</Strong>
-                ),
-            },
-          ]}
-        />
+        title="Commitment"
+        rows={[
+          { label: "Promised", value: o.promised, icon: CalendarBlank },
+          {
+            label: "Type",
+            value: o.fixed ? "Fixed install · crew booked" : "Movable ± a few days",
+            icon: o.fixed ? LockSimple : ArrowsLeftRight,
+          },
+          {
+            label: "Current slot",
+            value: o.risk === "info" ? "Not yet placed" : "Backing 2 · slot 2",
+            icon: Path,
+          },
+          {
+            label: "Projected finish",
+            value:
+              o.risk === "info" ? (
+                "On time"
+              ) : (
+                <Strong tone="bad">{`${RUN.projectedSlip} · margin tight`}</Strong>
+              ),
+            icon: ClockCountdown,
+          },
+        ]}
+      />
 
+      {/* Reference only — the drawer explains an order, it doesn't act on one.
+          The decision, and the buttons that carry it, live on Make's deck. */}
       {o.risk !== "info" && (
         <Section title="If it misses">
           <p className="type-body" style={{ color: "var(--ds-text-secondary)", lineHeight: 1.55 }}>
-            A missed install means a re-booked crew and a likely chargeback — which is why{" "}
-            <DrillLink kind="option" id="A" variant="prose">Option A</DrillLink> (hold the date, pay
-            the changeover) beats <DrillLink kind="option" id="B" variant="prose">Option B</DrillLink>{" "}
-            (save changeover, risk shade and the date).
+            A missed install means a re-booked crew and a likely chargeback. Holding the date costs
+            a changeover; saving the changeover risks both the shade and the date.
           </p>
         </Section>
       )}

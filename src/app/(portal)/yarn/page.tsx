@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Drop } from "@phosphor-icons/react";
+import { Check, PencilSimple, X, type Icon } from "@phosphor-icons/react";
 import {
   AiStar,
   Button,
   DataTable,
   EmptyState,
+  PageHeading,
   TableShell,
   type DataTableColumn,
 } from "@navanta-ai/design-system";
@@ -14,15 +15,15 @@ import { usePersona } from "@/context/PersonaContext";
 import { useScope } from "@/context/ScopeContext";
 import { useYarn } from "@/context/YarnContext";
 import { plantLabel } from "@/types/division";
-import { APPROVALS, APPROVAL_LABEL, type ApprovalRow } from "@/types/yarn";
+import { approvalsForTab, type ApprovalRow } from "@/types/yarn";
 import DrillLink from "@/components/ui/DrillLink";
 import ApprovalDeckModal from "./_components/ApprovalDeckModal";
+import YarnBallIcon from "./_components/YarnBallIcon";
+import LotSwatchChip from "./_components/LotSwatch";
 import SableRead from "./_components/SableRead";
 
-/** The two families of proposal, as the queue tabs. A row's family decides
- *  which deck it opens — yarn-lot rows get the mapping/utilisation/spread deck,
- *  creel-plan rows get the alignment/threading/traceability one. */
-type TabId = "yarnlot" | "creelplan";
+type TabId = "yarn" | "dye" | "approved";
+
 
 /**
  * Yarn is Sable's approval queue.
@@ -36,246 +37,323 @@ type TabId = "yarnlot" | "creelplan";
  * automate, so every row here ends in a person's signature by design rather
  * than by an unset threshold.
  *
- * The creel sequence and the lot genealogy are not on this page. Both differ
- * per proposal — a chain rendered page-level would be true of exactly one of
- * the three rows — so each lives in the deck of the approval it belongs to.
+ * The queue is split into two tabs, because Sable brings two different jobs.
+ * *Yarn lot to order* is a supply decision — which draw of undyed fibre serves
+ * which orders, made before any colour exists. *Dye lot to approve* is a shade
+ * decision — does this recipe hit standard. They share the decision-queue
+ * shape but not their columns (a yarn lot has a grade and a receipt; a dye lot
+ * has a shade and a formula), and the swatch in front of the id is a different
+ * object in each. So they are tabs, not a filter on one list.
  */
 export default function YarnPage() {
   const { plant } = useScope();
   const { profile } = usePersona();
-  const { states } = useYarn();
+  const { states, approve, returnToAgent, pendingApprovals } = useYarn();
 
-  const [tab, setTab] = useState<TabId>("yarnlot");
+  const [tab, setTab] = useState<TabId>("yarn");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [deck, setDeck] = useState<ApprovalRow | null>(null);
 
-  // The pipeline. A yarn-lot proposal is acted on until it is approved, at
-  // which point it leaves this queue and its creel-plan step becomes visible —
-  // so a creel-plan row only appears once the yarn lot it follows is signed.
-  const yarnLotRows = useMemo(
-    () => APPROVALS.filter((a) => a.family === "yarnlot" && states.get(a.id) !== "approved"),
-    [states],
-  );
-  const creelPlanRows = useMemo(
+  // The queue holds only what still needs a person. An approved allocation is
+  // committed and leaves; a rejected one has gone back to Sable. Either way it
+  // is no longer waiting, so it drops out rather than sitting settled in place.
+  const rows = useMemo(
     () =>
-      APPROVALS.filter(
-        (a) => a.family === "creelplan" && a.follows && states.get(a.follows) === "approved",
-      ),
-    [states],
+      tab === "approved"
+        ? approvalsForTab("approved")
+        : approvalsForTab(tab).filter((a) => !states.has(a.id)),
+    [tab, states],
   );
-  const rows = tab === "yarnlot" ? yarnLotRows : creelPlanRows;
 
-  // Only proposals actually on a queue right now count toward the header —
-  // a creel-plan step still gated behind an unapproved yarn lot isn't yet a
-  // decision anyone can make.
-  const actionable =
-    yarnLotRows.filter((a) => !states.has(a.id)).length +
-    creelPlanRows.filter((a) => !states.has(a.id)).length;
+  // Shared cells, then the per-tab column set. Subject, recommendation and
+  // action are the same everywhere; the middle columns are what the tab is
+  // actually about.
+  const subjectCol: DataTableColumn<ApprovalRow> = {
+    key: "subject",
+    label: "Lot",
+    alwaysVisible: true,
+    width: 190,
+    stopRowClick: true,
+    cell: (row) => {
+      // The id is the object; the family name (Cascade / Dune / Aria base) is
+      // context. Same stacked shape as the Make and Quality subject cells —
+      // link on top, the descriptor quiet beneath it.
+      const [id, ...rest] = row.subject.label.split(" · ");
+      return (
+        <span className="flex items-center" style={{ gap: 9 }}>
+          <LotSwatchChip swatch={row.swatch} />
+          <span className="flex flex-col" style={{ gap: 1 }}>
+            <button
+              type="button"
+              onClick={() => setDeck(row)}
+              className="type-body font-medium text-left hover:underline"
+              style={{ background: "none", padding: 0, cursor: "pointer", color: "var(--link-color)" }}
+            >
+              {id}
+            </button>
+            {rest.length > 0 && (
+              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                {rest.join(" · ")}
+              </span>
+            )}
+          </span>
+        </span>
+      );
+    },
+  };
 
-  const columns = useMemo<DataTableColumn<ApprovalRow>[]>(
-    () => [
-      {
-        key: "subject",
-        label: "Subject",
-        alwaysVisible: true,
-        minWidth: 168,
-        stopRowClick: true,
-        cell: (row) => (
-          <button
-            type="button"
-            onClick={() => setDeck(row)}
-            className="type-body font-medium text-left hover:underline"
+  const stakeCol: DataTableColumn<ApprovalRow> = {
+    key: "value",
+    label: "Value",
+    width: 100,
+    cell: (row) => (
+      <span
+        className="type-body"
+        style={{ fontVariantNumeric: "tabular-nums", color: "var(--ds-text-primary)" }}
+      >
+        ${row.value.toLocaleString()}
+      </span>
+    ),
+  };
+
+  const recommendationCol: DataTableColumn<ApprovalRow> = {
+    key: "insight",
+    label: "Recommendation",
+    width: 180,
+    headerCell: () => (
+      <span className="inline-flex items-center" style={{ gap: 6 }}>
+        <AiStar size={14} />
+        <span>Recommendation</span>
+      </span>
+    ),
+    // Concise on the row — the call, Sable's confidence in it, and the one lab
+    // reading behind it. The full prose is on the title and in the Review modal.
+    cell: (row) => (
+      <span className="flex flex-col" style={{ gap: 2 }} title={row.insight.headline}>
+        <span className="inline-flex items-center" style={{ gap: 8 }}>
+          <span
+            className="type-body"
+            style={{ color: "var(--color-iris-700)", fontWeight: 500 }}
+          >
+            {row.verdict}
+          </span>
+          <span
+            className="type-caption"
             style={{
-              background: "none",
-              padding: 0,
-              cursor: "pointer",
-              color: "var(--link-color)",
+              fontVariantNumeric: "tabular-nums",
+              color: "var(--color-iris-700)",
+              background: "var(--color-iris-50)",
+              borderRadius: 999,
+              padding: "1px 7px",
             }}
           >
-            {row.subject.label}
-          </button>
-        ),
-      },
-      {
-        key: "kind",
-        label: "Approval",
-        width: 132,
-        cell: (row) => (
-          <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
-            {APPROVAL_LABEL[row.kind]}
+            {row.confidence}% confidence
           </span>
-        ),
-      },
-      {
-        key: "qty",
-        label: "Quantity",
-        width: 104,
-        cell: (row) => (
-          <span
-            className="type-body"
-            style={{ fontVariantNumeric: "tabular-nums", color: "var(--ds-text-primary)" }}
+        </span>
+      </span>
+    ),
+  };
+
+  // Both queues offer the whole decision inline — reject and send back,
+  // override in the deck (the quantity for a yarn lot, the recipe for a dye
+  // lot), or approve as proposed. Three DS outline buttons, icon-only so all
+  // three fit beside the data columns without the row scrolling, each with its
+  // verb on hover. The reject reason and the override's tooltip adapt to what
+  // the row actually commits.
+  const decisionCol: DataTableColumn<ApprovalRow> = {
+    key: "action",
+    label: "Action",
+    width: 132,
+    align: "right" as const,
+    stopRowClick: true,
+    cell: (row) => {
+      const dye = row.tab === "dye";
+      return (
+        <span className="inline-flex items-center justify-end" style={{ gap: 6 }}>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={`Reject ${row.subject.label}`}
+            title="Reject — send back to Sable"
+            onClick={() =>
+              returnToAgent(
+                row.id,
+                dye ? "Rejected — re-propose the recipe" : "Rejected — re-propose the allocation",
+              )
+            }
           >
-            {row.qty}
-          </span>
-        ),
-      },
-      {
-        key: "covers",
-        label: "Covers",
-        width: 150,
-        cell: (row) => (
-          <span className="type-body" style={{ color: "var(--ds-text-secondary)" }}>
-            {row.covers}
-          </span>
-        ),
-      },
-      {
-        key: "yarnLot",
-        label: "Built from",
-        width: 118,
-        stopRowClick: true,
-        cell: (row) => <DrillLink kind="yarn" id={row.yarnLot} />,
-      },
-      {
-        key: "value",
-        label: "At stake",
-        width: 108,
-        cell: (row) => (
-          <span
-            className="type-body"
-            style={{ fontVariantNumeric: "tabular-nums", color: "var(--ds-text-primary)" }}
+            <X size={15} weight="bold" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={`Override ${row.subject.label}`}
+            title={dye ? "Override — open the dip and formula" : "Override the quantity to order"}
+            onClick={() => setDeck(row)}
           >
-            ${row.value.toLocaleString()}
-          </span>
-        ),
-      },
-      {
-        key: "at",
-        label: "Raised",
-        width: 92,
-        cell: (row) => (
-          <span
-            className="type-body"
-            style={{ fontVariantNumeric: "tabular-nums", color: "var(--ds-text-secondary)" }}
+            <PencilSimple size={15} weight="bold" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={`Approve ${row.subject.label}`}
+            title="Approve as proposed"
+            onClick={() => approve(row.id)}
           >
-            {row.at}
-          </span>
-        ),
-      },
-      {
-        key: "insight",
-        label: "Recommendation",
-        minWidth: 220,
-        headerCell: () => (
-          <span className="inline-flex items-center" style={{ gap: 6 }}>
-            <AiStar size={14} />
-            <span>Recommendation</span>
-          </span>
-        ),
-        cell: (row) => (
-          <span className="flex flex-col" style={{ gap: 1, maxWidth: 250 }} title={row.escalation}>
-            <span className="type-body" style={{ color: "var(--color-iris-700)" }}>
-              {row.insight.headline}
-            </span>
-            <span className="type-caption" style={{ color: "var(--color-iris-700)", opacity: 0.75 }}>
-              {row.insight.detail}
-            </span>
-          </span>
-        ),
-      },
-      {
-        // Always present now that the tabs split by family rather than by
-        // whether a row is settled — both tabs mix signed and waiting rows,
-        // so the state has to be readable in the row itself.
-        key: "outcome",
-        label: "Status",
-        width: 120,
-        cell: (row) => {
-          const state = states.get(row.id);
-          if (!state) {
-            return (
-              <span className="type-body" style={{ color: "var(--text-warning, #B26B00)" }}>
-                Needs you
-              </span>
-            );
-          }
-          const approved = state === "approved";
-          return (
+            <Check size={15} weight="bold" />
+          </Button>
+        </span>
+      );
+    },
+  };
+
+  const plain = (
+    key: string,
+    label: string,
+    width: number,
+    get: (r: ApprovalRow) => string | undefined,
+    opts: { tabular?: boolean; muted?: boolean } = {},
+  ): DataTableColumn<ApprovalRow> => ({
+    key,
+    label,
+    width,
+    cell: (row) => (
+      <span
+        className="type-body"
+        style={{
+          fontVariantNumeric: opts.tabular ? "tabular-nums" : undefined,
+          color: opts.muted ? "var(--ds-text-secondary)" : "var(--ds-text-primary)",
+        }}
+      >
+        {get(row) ?? "—"}
+      </span>
+    ),
+  });
+
+  /** Who signed a settled row, and the limit that let them. Sable's name is
+   *  starred — the engine's own work is marked wherever it appears. */
+  const approvedByCol: DataTableColumn<ApprovalRow> = {
+    key: "approvedBy",
+    label: "Approved by",
+    width: 190,
+    cell: (row) => {
+      const engine = row.approvedBy !== undefined && row.approvedBy !== profile.name;
+      return (
+        <span className="flex flex-col" style={{ gap: 1 }}>
+          <span className="inline-flex items-center" style={{ gap: 5 }}>
+            {engine && <AiStar size={13} />}
             <span
               className="type-body"
-              style={{ color: approved ? "var(--text-success)" : "var(--ds-text-secondary)" }}
+              style={{ color: engine ? "var(--color-iris-700)" : "var(--ds-text-primary)" }}
             >
-              {approved ? "Approved" : "Sent back"}
+              {row.approvedBy ?? "—"}
             </span>
-          );
-        },
-      },
-      {
-        key: "action",
-        label: "Action",
-        width: 116,
-        align: "right" as const,
-        stopRowClick: true,
-        // Not "Review": a yarn-lot proposal is acted on and approved to move it
-        // into Creel Plan, so the button names the act. A row that's already
-        // settled just reopens.
-        cell: (row) => (
-          <Button variant="outline" size="sm" onClick={() => setDeck(row)}>
-            {states.has(row.id) ? "Open" : "Approve"}
-          </Button>
-        ),
-      },
-    ],
-    [states],
+          </span>
+          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+            {row.approvedRule ?? ""}
+          </span>
+        </span>
+      );
+    },
+  };
+
+  const columns = useMemo<DataTableColumn<ApprovalRow>[]>(
+    () =>
+      tab === "approved"
+      ? [
+          subjectCol,
+          {
+            key: "yarnLot",
+            label: "Built from",
+            width: 126,
+            stopRowClick: true,
+            cell: (row) => <DrillLink kind="yarn" id={row.yarnLot} />,
+          },
+          plain("qty", "Commits", 104, (r) => r.qty, { tabular: true }),
+          plain("covers", "Covers", 100, (r) => r.covers, { muted: true }),
+          stakeCol,
+          approvedByCol,
+          plain("at", "At", 80, (r) => r.at, { tabular: true, muted: true }),
+        ]
+      : tab === "yarn"
+        ? [
+            subjectCol,
+            plain("grade", "Grade", 128, (r) => r.grade),
+            plain("received", "Received", 104, (r) => r.received, { tabular: true }),
+            {
+              key: "covers",
+              label: "Allocating to",
+              width: 168,
+              stopRowClick: true,
+              cell: (row) => (
+                <span className="flex flex-wrap items-center" style={{ gap: 6 }}>
+                  {row.covers.split(" · ").map((o) =>
+                    /^ORD-/.test(o) ? (
+                      <DrillLink key={o} kind="order" id={o} />
+                    ) : (
+                      <span key={o} className="type-body" style={{ color: "var(--ds-text-secondary)" }}>
+                        {o}
+                      </span>
+                    ),
+                  )}
+                </span>
+              ),
+            },
+            plain("qty", "Committing", 104, (r) => r.qty, { tabular: true }),
+            stakeCol,
+            recommendationCol,
+            decisionCol,
+          ]
+        : [
+            subjectCol,
+            {
+              key: "yarnLot",
+              label: "Built from",
+              width: 126,
+              stopRowClick: true,
+              cell: (row) => <DrillLink kind="yarn" id={row.yarnLot} />,
+            },
+            plain("qty", "Commits", 104, (r) => r.qty, { tabular: true }),
+            plain("covers", "Covers", 100, (r) => r.covers, { muted: true }),
+            stakeCol,
+            recommendationCol,
+            decisionCol,
+          ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tab, states],
   );
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <header className="flex flex-col" style={{ gap: 4 }}>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.11em",
-            textTransform: "uppercase",
-            color: "var(--ds-text-placeholder, var(--text-muted))",
-          }}
-        >
-          Yarn · Sable · {plantLabel(plant)}
-        </span>
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            letterSpacing: "-0.01em",
-            color: "var(--ds-text-primary)",
-          }}
-        >
-          {actionable > 0
-            ? `${actionable} proposal${actionable === 1 ? "" : "s"} need your sign-off`
-            : "Nothing waiting on your sign-off"}
-        </h1>
-        <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          Sable sizes dye lots, writes the recipe and plans the creel so big orders hold their shade
-          with the least waste. It proposes; {profile.name} signs. Nothing here runs on its own.
-        </p>
-      </header>
+      <PageHeading
+        title="Yarn planning"
+        subtitle={`Yarn · Sable · ${plantLabel(plant)}. Two decisions before any colour is made: which yarn lot serves which orders, and whether each dye lot\u2019s recipe hits standard. Sable proposes${
+          pendingApprovals > 0 ? ` — ${pendingApprovals} waiting on ${profile.name}` : ""
+        }; nothing here runs on its own.`}
+      />
 
       <SableRead />
 
       <TableShell
-        title="Yarn at a glance"
-        icon={Drop}
+      customize={false}
+        title="Approval queue"
+        icon={YarnBallIcon as unknown as Icon}
         tabs={[
           {
-            id: "yarnlot",
-            label: "Yarn Lot",
-            badge: yarnLotRows.filter((a) => !states.has(a.id)).length,
+            id: "yarn",
+            label: "Yarn lot → order",
+            badge: approvalsForTab("yarn").filter((a) => !states.has(a.id)).length,
           },
           {
-            id: "creelplan",
-            label: "Creel Plan",
-            badge: creelPlanRows.filter((a) => !states.has(a.id)).length,
+            id: "dye",
+            label: "Dye lot → approve",
+            badge: approvalsForTab("dye").filter((a) => !states.has(a.id)).length,
+          },
+          {
+            id: "approved",
+            label: "Approved",
+            badge: approvalsForTab("approved").length,
           },
         ]}
         activeTab={tab}
@@ -291,12 +369,12 @@ export default function YarnPage() {
         onPageSizeChange={setPageSize}
         emptyState={
           <EmptyState
-            icon={<Drop weight="duotone" style={{ width: 24, height: 24 }} />}
-            title={tab === "yarnlot" ? "No yarn-lot proposals" : "No creel plans yet"}
+            icon={<YarnBallIcon size={24} />}
+            title="Nothing in this queue"
             description={
-              tab === "yarnlot"
-                ? "Dye formulas, run orders and lot sizing Sable raises will collect here."
-                : "A creel plan appears here once the yarn lot it runs on is approved. Sign off a Yarn Lot proposal to open its loading plan."
+              tab === "yarn"
+                ? "No yarn lots waiting to be allocated to an order."
+                : "No dye lots waiting on a shade sign-off."
             }
           />
         }

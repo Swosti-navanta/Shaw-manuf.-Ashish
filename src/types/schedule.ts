@@ -33,6 +33,16 @@ export type StyleFamily = "aria" | "meridian" | "cascade" | "dune";
 
 /** How light the family runs. Sequencing light → dark keeps purges cheap; a
  *  dark → light jump forces a full purge. */
+/** The shade each family runs, for the cone on a bar. A proposal's cone should
+ *  show the yarn it would run, not the fact that an agent proposed it — the
+ *  dashed iris frame already says that. */
+export const FAMILY_COLOR: Record<StyleFamily, string> = {
+  aria: "#6B7280",
+  dune: "#0F766E",
+  meridian: "#A16207",
+  cascade: "#3F3F47",
+};
+
 export const FAMILY_DEPTH: Record<StyleFamily, number> = {
   aria: 1,
   dune: 2,
@@ -47,7 +57,13 @@ export interface Run {
   /** Hours of belt time. Drives the block's width on the track. */
   hours: number;
   dyeLot?: string;
+  /** The greige yarn lot — what a tufting run is identified by, before any
+   *  colour exists. Tufting shows this; dyeing onward shows the dye lot. */
+  yarn?: string;
   order?: string;
+  /** How many orders the run serves — shown on the bar as "N orders" rather
+   *  than a specific order id, which means nothing at a glance. */
+  orders?: number;
   /** A fixed install date — this run cannot slip. */
   fixed?: boolean;
   /** Left edge accent on the block. */
@@ -157,7 +173,11 @@ export interface BacklogItem {
   family: StyleFamily;
   hours: number;
   dyeLot?: string;
+  /** Greige yarn lot, for a run that sits on the tufting belt. */
+  yarn?: string;
   order?: string;
+  /** Orders served — shown on the board ghost as "N orders". */
+  orders?: number;
   customer?: string;
   qty: number;
   /** Promised date as shown to the customer. */

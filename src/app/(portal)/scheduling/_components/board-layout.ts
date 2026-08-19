@@ -6,7 +6,13 @@
 // gaps between them all stay commensurable.
 
 import { BOARD, BOARD_HOURS } from "@/data/schedule-data";
-import { changeoverCost, changeoverHours, type BacklogItem, type Run } from "@/types/schedule";
+import {
+  changeoverCost,
+  changeoverHours,
+  FAMILY_COLOR,
+  type BacklogItem,
+  type Run,
+} from "@/types/schedule";
 
 export interface PlacedRun {
   run: Run;
@@ -149,9 +155,11 @@ export function backlogRun(b: BacklogItem): Run {
     family: b.family,
     hours: b.hours,
     dyeLot: b.dyeLot,
+    yarn: b.yarn,
     order: b.order,
+    orders: b.orders,
     fixed: b.fixed,
     startAt: LOCKED_HOURS,
-    accent: "var(--color-iris-500)",
+    accent: FAMILY_COLOR[b.family],
   };
 }

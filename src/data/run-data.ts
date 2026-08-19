@@ -1,4 +1,4 @@
-// The shift on Plant 12 · Aiken. Illustrative data — one run, one deviation,
+// The shift on Plant 04 · Dalton. Illustrative data — one run, one deviation,
 // and everything the engine assembled to argue about it.
 //
 // The whole narrative hangs off one object: dye lot DL-4471 is shade-critical
@@ -141,6 +141,7 @@ export const ORDERS: Record<string, OrderRef> = {
 
 export const LINES: ReadonlyArray<LineState> = [
   { name: "Tufting 3", achieved: 511, standard: 520, oee: 94 },
+  { name: "Dyeing 1", achieved: 372, standard: 400, oee: 92 },
   {
     name: "Backing 2",
     achieved: 369,
@@ -154,7 +155,7 @@ export const LINES: ReadonlyArray<LineState> = [
 ];
 
 /** The constraint line — indexed once so every consumer agrees on it. */
-export const CONSTRAINT_LINE = LINES[1];
+export const CONSTRAINT_LINE = LINES.find((l) => l.constraint) ?? LINES[0];
 
 /**
  * The vibration signal behind Rowan's work-order draft.
@@ -181,6 +182,7 @@ export const MACHINE_SIGNAL: MachineSignal = {
   lastPm: "14 days ago",
   overThreshold: true,
 };
+
 
 /** Achieved rate against a flat 420 standard, from 06:00 to now. The gap
  *  opens steadily rather than dropping off a cliff, which is exactly why a

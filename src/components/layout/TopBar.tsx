@@ -17,7 +17,7 @@ interface TopBarProps {
 }
 
 const ROUTE_LABELS: Record<string, string> = {
-  overview: "Overview",
+  overview: "Executive dashboard",
   make: "Make",
   quality: "Quality",
   claims: "Field claims",

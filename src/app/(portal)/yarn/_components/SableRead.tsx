@@ -1,84 +1,56 @@
 "use client";
 
-import { WASTE_AVOIDED, YARN_KPIS } from "@/types/yarn";
+import { KpiBreakdownCard, KpiGrid } from "@navanta-ai/design-system";
+import { useYarn } from "@/context/YarnContext";
+import { APPROVALS, YARN_KPIS } from "@/types/yarn";
+
+/** Pull a reading out of YARN_KPIS by label, so the numbers stay in one place. */
+const kpi = (label: string) => YARN_KPIS.find((k) => k.label === label);
 
 /**
- * Sable's read — waste avoided, and the four readings behind it.
+ * Sable's read — four figures, on DS breakdown cards.
  *
- * The headline is a saving rather than an exposure, which makes it the odd one
- * out among the agent surfaces. That is honest: Quality opens with money at
- * risk because grading is damage control, and Yarn opens with money kept
- * because sizing a lot correctly is the one thing here that pays before
- * anything goes wrong.
+ * Dollars at stake leads: this is a queue of signatures, and the first thing
+ * that ranks it is how much money is riding on the lots still waiting. The
+ * others are the levers behind it — how full the creel ran, how many signatures
+ * are open, and whether the shade-critical lot was held whole. All four move
+ * with the queue, so the read never disagrees with the table under it.
  */
 export default function SableRead() {
-  return (
-    <section
-      style={{
-        background: "var(--surface-base)",
-        border: "1px solid var(--border-default)",
-        borderRadius: 14,
-        boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-        padding: "16px 18px",
-      }}
-    >
-      <div className="flex items-baseline flex-wrap" style={{ gap: 12 }}>
-        <span
-          style={{
-            fontSize: 34,
-            fontWeight: 600,
-            letterSpacing: "-0.02em",
-            lineHeight: 1,
-            color: "var(--text-success)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          ${WASTE_AVOIDED.toLocaleString()}
-        </span>
-        <span className="type-body" style={{ color: "var(--ds-text-secondary)" }}>
-          yarn waste avoided this week by right-sizing dye lots to the orders they serve.
-        </span>
-      </div>
+  const { states, pendingApprovals } = useYarn();
+  const creel = kpi("Creel utilisation");
+  const shade = kpi("Shade-critical lots");
 
-      <div
-        className="grid"
-        style={{
-          gap: 10,
-          marginTop: 16,
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        }}
-      >
-        {YARN_KPIS.map((k) => (
-          <div
-            key={`${k.label}·${k.detail}`}
-            className="flex flex-col"
-            style={{
-              gap: 4,
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid var(--border-light)",
-            }}
-          >
-            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-              {k.label}
-            </span>
-            <span
-              style={{
-                fontSize: 22,
-                fontWeight: 600,
-                lineHeight: 1.1,
-                fontVariantNumeric: "tabular-nums",
-                color: k.alert ? "var(--text-danger)" : "var(--ds-text-primary)",
-              }}
-            >
-              {k.value}
-            </span>
-            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-              {k.detail}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
+  // Money riding on the lots still waiting — sum of stake over the undecided
+  // rows, so signing one off takes it out of the headline too.
+  const atStake = APPROVALS.filter((a) => !states.has(a.id)).reduce((n, a) => n + a.value, 0);
+
+  return (
+    <KpiGrid columns={4}>
+      <KpiBreakdownCard
+        title="Value at stake"
+        value={`$${atStake.toLocaleString()}`}
+        subtitle={`across ${pendingApprovals} lot${pendingApprovals === 1 ? "" : "s"} waiting to sign off`}
+      />
+      <KpiBreakdownCard
+        title="Creel utilisation"
+        value={creel?.value ?? "—"}
+        subtitle={creel?.detail ?? ""}
+      />
+      <KpiBreakdownCard
+        title="Waiting on you"
+        value={String(pendingApprovals)}
+        subtitle={
+          pendingApprovals > 0
+            ? `to sign off · nothing here runs on its own`
+            : "queue clear · nothing waiting"
+        }
+      />
+      <KpiBreakdownCard
+        title="Shade-critical lots"
+        value={shade?.value ?? "—"}
+        subtitle={shade?.detail ?? ""}
+      />
+    </KpiGrid>
   );
 }
