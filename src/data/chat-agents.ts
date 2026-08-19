@@ -223,11 +223,11 @@ export const PAGE_AGENTS: Record<string, PageAgent> = {
         },
       },
       {
-        label: "What is the vibration telling us?",
+        label: "What is the bearing temperature telling us?",
         answer: {
           note: "It is past the alert limit and rising, but the PM is not for three days.",
           rows: [
-            { label: "Reading", text: "4.2 mm/s against a 4.0 limit, drive-side motor bearing." },
+            { label: "Reading", text: "182°F against a 175°F limit, drive-side motor bearing." },
             { label: "Trend", text: "Rising across three shifts; last PM was 14 days ago." },
             { label: "Call", text: "Raising the order early is yours — the signal routes on its own." },
           ],
@@ -352,6 +352,7 @@ export const PAGE_AGENTS: Record<string, PageAgent> = {
   },
 
   "/overview": SAGE,
+  "/sage": SAGE,
   "/performance": IRIS,
   "/thresholds": IRIS,
   "/settings": SAGE,
