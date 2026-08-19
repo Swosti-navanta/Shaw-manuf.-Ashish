@@ -14,6 +14,7 @@ import {
   SidebarSimple,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import ShawMark from "@/components/ui/ShawMark";
 import {
   SideNav,
   type SideNavItem,
@@ -146,7 +147,7 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
         }
         logo={
           <div className="flex items-center" style={{ gap: 8 }}>
-            <Mark />
+            <ShawMark />
             <div className="flex flex-col" style={{ lineHeight: 1.15 }}>
               <span className="type-subheading" style={{ color: "var(--ds-text-primary)" }}>
                 Shaw
@@ -186,23 +187,3 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
   );
 }
 
-function Mark({ title }: { title?: string }) {
-  return (
-    <span
-      title={title}
-      aria-hidden="true"
-      className="inline-grid place-items-center shrink-0"
-      style={{
-        width: 26,
-        height: 26,
-        borderRadius: 8,
-        background: "var(--gradient-brand)",
-        color: "#FFFFFF",
-        fontWeight: 600,
-        fontSize: 13,
-      }}
-    >
-      S
-    </span>
-  );
-}

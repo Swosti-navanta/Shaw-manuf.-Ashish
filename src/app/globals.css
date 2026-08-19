@@ -555,6 +555,10 @@ aside.w-12,
      contrast against the rail whatever the rail's exact value is. */
   --sidebar-hover-bg: rgba(255, 255, 255, 0.1);
   --sidebar-active-bg: rgba(255, 255, 255, 0.16);
+  /* The mark sits ON the teal here, so it inverts: a teal mark on a teal
+     panel would be a blank square. */
+  --mark-bg: #ffffff;
+  --mark-ink: var(--nav-teal);
 }
 
 /* The active icon is filled from a gradient whose stops are declared in a

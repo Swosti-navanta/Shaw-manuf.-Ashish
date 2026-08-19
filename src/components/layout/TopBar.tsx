@@ -17,6 +17,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { Select } from "@navanta-ai/design-system";
+import ShawMark from "@/components/ui/ShawMark";
 import { useScope } from "@/context/ScopeContext";
 import { plantSelectItems, ALL_DIVISIONS, type PlantId } from "@/types/division";
 import {
@@ -78,7 +79,8 @@ export default function TopBar() {
       }}
     >
       {/* Left: sidebar toggle + page title */}
-      <div className="flex items-center" style={{ gap: 12 }}>
+      <div className="flex items-center" style={{ gap: 10 }}>
+        <ShawMark title="Shaw Manufacturing" size={22} />
         <span
           className="type-body-medium"
           style={{ color: "var(--ds-text-primary)", whiteSpace: "nowrap" }}
