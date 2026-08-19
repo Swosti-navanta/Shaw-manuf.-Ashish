@@ -146,7 +146,6 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
             </div>
           </div>
         }
-        logoCollapsed={<Mark title="Shaw Manufacturing" />}
         onSettingsClick={() => router.push(SETTINGS_HREF)}
         settingsLabel="Settings"
         user={{

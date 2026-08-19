@@ -9,6 +9,7 @@ import {
   EmptyState,
   PageHeading,
   TableShell,
+  Tooltip,
   type DataTableColumn,
 } from "@navanta-ai/design-system";
 import { usePersona } from "@/context/PersonaContext";
@@ -171,38 +172,41 @@ export default function YarnPage() {
       const dye = row.tab === "dye";
       return (
         <span className="inline-flex items-center justify-end" style={{ gap: 6 }}>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={`Reject ${row.subject.label}`}
-            title="Reject — send back to Sable"
-            onClick={() =>
-              returnToAgent(
-                row.id,
-                dye ? "Rejected — re-propose the recipe" : "Rejected — re-propose the allocation",
-              )
-            }
-          >
-            <X size={15} weight="bold" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={`Override ${row.subject.label}`}
-            title={dye ? "Override — open the dip and formula" : "Override the quantity to order"}
-            onClick={() => setDeck(row)}
-          >
-            <PencilSimple size={15} weight="bold" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={`Approve ${row.subject.label}`}
-            title="Approve as proposed"
-            onClick={() => approve(row.id)}
-          >
-            <Check size={15} weight="bold" />
-          </Button>
+          <Tooltip content="Reject — send back to Sable">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={`Reject ${row.subject.label}`}
+              onClick={() =>
+                returnToAgent(
+                  row.id,
+                  dye ? "Rejected — re-propose the recipe" : "Rejected — re-propose the allocation",
+                )
+              }
+            >
+              <X size={15} weight="bold" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={dye ? "Override — open the dip and formula" : "Override the quantity to order"}>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={`Override ${row.subject.label}`}
+              onClick={() => setDeck(row)}
+            >
+              <PencilSimple size={15} weight="bold" />
+            </Button>
+          </Tooltip>
+          <Tooltip content="Approve as proposed">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={`Approve ${row.subject.label}`}
+              onClick={() => approve(row.id)}
+            >
+              <Check size={15} weight="bold" />
+            </Button>
+          </Tooltip>
         </span>
       );
     },

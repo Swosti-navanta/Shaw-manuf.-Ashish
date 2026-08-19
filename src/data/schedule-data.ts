@@ -384,10 +384,10 @@ export const ROLL_NO: Record<string, string> = (() => {
     ...STATIC_BELTS.finishing,
     ...STATIC_LANE_RUNS,
   ].forEach((r) => {
-    if (!out[r.id]) out[r.id] = `RUN-${n++}`;
+    if (!out[r.id]) out[r.id] = `R-${n++}`;
   });
   BACKLOG.forEach((b) => {
-    if (!out[b.id]) out[b.id] = `RUN-${n++}`;
+    if (!out[b.id]) out[b.id] = `R-${n++}`;
   });
   return out;
 })();

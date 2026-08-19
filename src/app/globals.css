@@ -521,3 +521,13 @@ body > .fixed.z-\[95\] {
   0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
   40% { opacity: 1; transform: translateY(-2px); }
 }
+
+/* The collapsed rail starts at the nav, not 52px below it.
+   SideNav renders its logo row unconditionally, so dropping `logoCollapsed`
+   left an empty 52px box above the first icon. Matched on `:empty` rather
+   than on the height alone, so the row comes straight back the moment a mark
+   is put in it — and the expanded header, which does carry the wordmark, is
+   never touched. */
+aside .h-\[52px\]:empty {
+  display: none;
+}
