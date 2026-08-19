@@ -14,7 +14,6 @@ import {
   SidebarSimple,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
-import ShawMark from "@/components/ui/ShawMark";
 import {
   SideNav,
   type SideNavItem,
@@ -146,24 +145,14 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
           </button>
         }
         logo={
-          <div className="flex items-center" style={{ gap: 8 }}>
-            <ShawMark />
-            <div className="flex flex-col" style={{ lineHeight: 1.15 }}>
-              <span className="type-subheading" style={{ color: "var(--ds-text-primary)" }}>
-                Shaw
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  color: "var(--ds-text-secondary)",
-                }}
-              >
-                Manufacturing
-              </span>
-            </div>
-          </div>
+          /* The white cut of the wordmark: this panel is teal, and the navy
+             logo the top bar uses would all but vanish on it. */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src="/shaw-logo-white.svg"
+            alt="Shaw"
+            style={{ height: 26, width: "auto", marginLeft: 2 }}
+          />
         }
         onSettingsClick={() => router.push(SETTINGS_HREF)}
         settingsLabel="Settings"
