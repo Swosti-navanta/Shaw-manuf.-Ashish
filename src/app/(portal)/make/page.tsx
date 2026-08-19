@@ -7,21 +7,20 @@ import {
   Button,
   DataTable,
   EmptyState,
-  KpiBreakdownCard,
-  KpiGrid,
+  SegmentedControl,
   TableShell,
   type DataTableColumn,
 } from "@navanta-ai/design-system";
 import { usePersona } from "@/context/PersonaContext";
 import { useRun } from "@/context/RunContext";
 import { useScope } from "@/context/ScopeContext";
-import { useDetailDrawer } from "@/context/DetailDrawerContext";
 import { plantLabel } from "@/types/division";
 import { CATEGORY_OF, LANE_TAB, MAKE_ACTIONS, type MakeAction } from "@/types/action";
-import { SHIFT_KPIS } from "@/data/run-data";
 import ActionDeckModal from "./_components/ActionDeckModal";
+import LineHealth from "./_components/LineHealth";
 
 type TabId = "person" | "auto";
+type View = "line" | "queue";
 
 /**
  * Make is a queue of decisions, not a dashboard.
@@ -35,8 +34,7 @@ export default function MakePage() {
   const { plant } = useScope();
   const { profile } = usePersona();
   const { status, workOrderRaised } = useRun();
-  const { open: openDetail } = useDetailDrawer();
-
+  const [view, setView] = useState<View>("line");
   const [tab, setTab] = useState<TabId>("person");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -241,41 +239,32 @@ export default function MakePage() {
             color: "var(--ds-text-primary)",
           }}
         >
-          {counts.person > 0
-            ? `${counts.person} decision${counts.person === 1 ? " needs" : "s need"} you this shift`
-            : "Nothing needs you this shift"}
+          Line health · Plant 12, Aiken
         </h1>
         <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          Rowan reads the run against the released plan and raises what matters, to whom — with the
-          options already costed. {profile.name}{" "}
-          owns these calls.
+          Rowan watches every stage in real time. What crosses a threshold becomes a decision — that
+          lives in the queue tab. {profile.name} owns the call.
         </p>
       </header>
 
-      {/* What Marcus is answerable for this shift. These sit above
-          the queue because they're the standing scorecard the decisions move —
-          not evidence for any one of them. Each opens its own reading. */}
-      <KpiGrid columns={4}>
-        {SHIFT_KPIS.map((k) => (
-          <KpiBreakdownCard
-            key={k.kind}
-            title={k.title}
-            value={k.value}
-            subtitle={k.delta}
-            onClick={() => openDetail("kpi", k.kind)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                openDetail("kpi", k.kind);
-              }
-            }}
-            style={{ cursor: "pointer" }}
-          />
-        ))}
-      </KpiGrid>
+      {/* Line health is the machine story; the queue tab is the decisions that
+          rose out of it. One control between them. */}
+      <SegmentedControl
+        value={view}
+        onValueChange={(v) => setView(v as View)}
+        aria-label="Make view"
+        options={[
+          { value: "line", label: "Line health" },
+          {
+            value: "queue",
+            label: counts.person > 0 ? `Decision queue · ${counts.person}` : "Decision queue",
+          },
+        ]}
+      />
 
+      {view === "line" && <LineHealth />}
+
+      {view === "queue" && (
       <TableShell
         title="Decision queue"
         icon={Gauge}
@@ -320,6 +309,7 @@ export default function MakePage() {
           onRowClick={(a) => setDeck(a)}
         />
       </TableShell>
+      )}
 
       {deck && <ActionDeckModal action={deck} onClose={() => setDeck(null)} />}
     </div>
