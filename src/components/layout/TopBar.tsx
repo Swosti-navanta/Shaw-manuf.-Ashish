@@ -33,7 +33,7 @@ const ROUTE_LABELS: Record<string, string> = {
   claims: "Field claims",
   scheduling: "Scheduling",
   rules: "Constraint model",
-  yarn: "Yarn",
+  yarn: "Yarn planning",
   performance: "Performance",
   thresholds: "Thresholds",
   settings: "Settings",

@@ -40,7 +40,7 @@ const INBOX_ITEMS: NavDef[] = [
 ];
 
 const FLOOR_ITEMS: NavDef[] = [
-  { name: "Yarn", href: "/yarn", icon: Drop, agent: "Sable" },
+  { name: "Yarn planning", href: "/yarn", icon: Drop, agent: "Sable" },
   { name: "Make", href: "/make", icon: Gauge, agent: "Rowan" },
   { name: "Quality", href: "/quality", icon: ShieldCheck, agent: "Wren" },
 ];
