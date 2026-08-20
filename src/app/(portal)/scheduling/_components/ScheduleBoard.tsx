@@ -1361,6 +1361,22 @@ function Ghost({
           >
             {run.label}
           </span>
+          {/* The window it is proposed for, on the same line the placed bars
+              carry it. A proposal whose whole point is "here, at this time"
+              should not be the one card that makes you hover to read the
+              time. */}
+          <span
+            className="truncate"
+            style={{
+              fontSize: 9.5,
+              lineHeight: 1.3,
+              color: "var(--color-iris-700)",
+              opacity: 0.62,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {clockAt(start)}–{clockAt(start + hours)}
+          </span>
           <span
             className="truncate"
             style={{
@@ -2046,7 +2062,9 @@ function RunPopover({
   // Fixed and portalled. The track scroller sets `overflow-x: auto`, which
   // makes the cross axis a clipping context too, so anything drawn inside it
   // gets its bottom sliced off. A popover has to leave that box entirely.
-  const W = 268;
+  /* Wide enough that the value column stops crowding its label — the rows
+     carry belt names and clock ranges, which are the long ones. */
+  const W = 320;
   const left = Math.max(12, Math.min(anchor.left, window.innerWidth - W - 12));
   const below = anchor.bottom + 8;
   const fitsBelow = below + 220 < window.innerHeight;
