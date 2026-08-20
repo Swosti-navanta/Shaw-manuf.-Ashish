@@ -4,6 +4,8 @@
 // so TM1 (financials), Ignition (machine) and the P13 Excel can each replace a
 // block without the page changing.
 
+import { plantLabel } from "@/types/division";
+
 export interface Kpi {
   key: string;
   label: string;
@@ -163,14 +165,20 @@ const POVA_BASE: ReadonlyArray<PovaBase> = [
   },
 ];
 
-/** Variance-by-plant base — P13, $k, positive = over (U). Worst first. */
+/**
+ * Variance-by-plant base — $k, positive = over (U). Worst first.
+ *
+ * Names come from the plant model rather than being written here, for two
+ * reasons. The invented codes read as periods — "P13 · Dalton N" beside a
+ * period bar offering P12/P13/P14 is two different things wearing one label.
+ * And they named plants this app does not run: Aiken spins fibre, Cartersville
+ * makes carpet tile for the commercial book, Ringgold is LVT. This is the
+ * residential carpet mills, which is the whole list.
+ */
 const PLANT_BASE: ReadonlyArray<{ plant: string; v: number }> = [
-  { plant: "P13 · Dalton N", v: 41 },
-  { plant: "P15 · Dalton S", v: 22 },
-  { plant: "P12 · Aiken", v: 14 },
-  { plant: "P17 · Cartersville", v: 11 },
-  { plant: "P11 · Kennesaw", v: 8 },
-  { plant: "P21 · Ringgold", v: -6 },
+  { plant: plantLabel("p04"), v: 41 },
+  { plant: plantLabel("p07"), v: 22 },
+  { plant: plantLabel("p15"), v: 14 },
 ];
 
 const isPeriod = (p: string): p is Period => p === "P12" || p === "P13" || p === "P14";
@@ -278,7 +286,7 @@ export interface PovaDetail {
 export const POVA_DETAIL: Record<string, PovaDetail> = {
   Overtime: {
     concentration: [
-      { label: "By plant", value: "P13 carries $28k of the $47k" },
+      { label: "By plant", value: "Plant 04 carries $28k of the $47k" },
       { label: "By process", value: "Warping $19k · Tufting $14k" },
       { label: "By cost center", value: "500209 alone is $7.0k this wk" },
     ],

@@ -104,7 +104,7 @@ const ORDER: OrderRow[] = [
   { s: "watch", id: "ORD-708", sub: "Halloran · Dune 240", grade: "B", gradeTone: "warn", defects: "0.7", where: "Backing 2 · R edge", run: "R-1188", status: "In claim", statusTone: "bad" },
   { s: "all", id: "ORD-841", sub: "Nolan Interiors · Highland Loop", grade: "A", gradeTone: "good", defects: "0.1", where: "—", run: "R-1205", status: "Shipped", statusTone: "good" },
   { s: "all", id: "ORD-855", sub: "Ridgeway · Mist 110", grade: "A", gradeTone: "good", defects: "0.2", where: "—", run: "R-1207", status: "Shipped", statusTone: "good" },
-  { s: "all", id: "ORD-830", sub: "Cascade Twist · Aiken", grade: "A", gradeTone: "good", defects: "0.1", where: "—", run: "R-1201", status: "Shipped", statusTone: "good" },
+  { s: "all", id: "ORD-830", sub: "Thornbury Interiors · Cascade Twist", grade: "A", gradeTone: "good", defects: "0.1", where: "—", run: "R-1201", status: "Shipped", statusTone: "good" },
 ];
 
 const CLAIMS: ClaimRow[] = [

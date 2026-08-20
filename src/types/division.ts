@@ -63,7 +63,7 @@ export const PLANTS: Record<PlantId, Plant> = {
 
 export const PLANT_ORDER: ReadonlyArray<PlantId> = ["p04", "p07", "p15"];
 
-/** "Plant 12 · Aiken, SC" — the label used in the TopBar and page eyebrows. */
+/** "Plant 04 · Dalton, GA" — the label used in the TopBar and page eyebrows. */
 export function plantLabel(id: PlantId): string {
   const p = PLANTS[id];
   return `${p.code} · ${p.location}`;
