@@ -61,12 +61,6 @@ export default function TopBar() {
     setDivision(id === ALL_CATEGORIES || id === DEFAULT_CATEGORY ? "residential" : ALL_DIVISIONS);
   };
 
-  // Thresholds is the one surface that reads across the whole network — the
-  // VP sets a dial per plant, so a single-plant scope would misrepresent it.
-  // The plant Select stays live there (it's what you're editing), but the
-  // page itself lists every plant the division filter admits.
-  const isNetworkView = pathname.startsWith("/performance");
-
   return (
     <header
       className="relative z-10 flex items-center justify-between shrink-0"
@@ -130,9 +124,9 @@ export default function TopBar() {
           /* Empty rather than a stale pick when the category runs no mills
              here, so the trigger shows its placeholder instead of a plant that
              does not belong to what is selected beside it. */
-          value={catLoaded && !isNetworkView ? plant : ""}
+          value={catLoaded ? plant : ""}
           onValueChange={(v: string) => setPlant(v as PlantId)}
-          disabled={!catLoaded || isNetworkView}
+          disabled={!catLoaded}
         >
           {/* One glyph for the whole list rather than one per option — every
               option here is a mill. */}
@@ -148,7 +142,7 @@ export default function TopBar() {
                 style={{ color: "var(--text-secondary)" }}
               />
               <Select.Value
-                placeholder={isNetworkView ? "All plants" : catLoaded ? "Plant" : "No plant"}
+                placeholder={catLoaded ? "Plant" : "No plant"}
               />
             </span>
           </Select.Trigger>
