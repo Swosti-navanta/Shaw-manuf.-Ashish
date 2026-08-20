@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AiStar, Button, LineChart, SegmentedControl } from "@navanta-ai/design-system";
-import { DownloadSimple, X } from "@phosphor-icons/react";
+import { AiStar, Button, LineChart, SegmentedControl, Select } from "@navanta-ai/design-system";
+import { CalendarBlank, DownloadSimple, X } from "@phosphor-icons/react";
 import { useChatPanel } from "@/context/ChatPanelContext";
 import {
   DEFECT_GRID,
@@ -16,7 +16,6 @@ import {
   MARGIN_TREND,
   MFG_KPIS,
   OEE_TREND,
-  POVA_COMPARISONS,
   POVA_CURRENT_PERIOD,
   POVA_DETAIL,
   POVA_PERIODS,
@@ -46,17 +45,19 @@ export default function PerformancePage() {
   const { startTask } = useChatPanel();
   const agent = "Roll-up";
   const [view, setView] = useState<View>("exec");
-  // POVA's clock — one period, one comparison, governing every view.
+  /* POVA's clock. One control now: which four weeks. The comparison is always
+     budget — the table IS actual against budget, and "vs prior period" / "vs
+     same period LY" were three ways to ask a question only one of which the
+     figures answered. */
   const [period, setPeriod] = useState(POVA_CURRENT_PERIOD);
-  const [comparison, setComparison] = useState<PovaComparison>("budget");
+  const comparison: PovaComparison = "budget";
   const [povaDrawer, setPovaDrawer] = useState<PovaRow | null>(null);
   const periodMeta = POVA_PERIODS.find((pp) => pp.id === period) ?? POVA_PERIODS[1];
   // The period bar is a live dial: the summary tiles, the eight-row table and
   // variance-by-plant are all derived from (period, comparison), recomputed
   // whenever either toggle moves.
   const pova = useMemo(() => buildPova(period, comparison), [period, comparison]);
-  const comparisonLabel =
-    comparison === "budget" ? "vs budget" : comparison === "prior" ? "vs prior period" : "vs same period LY";
+  const comparisonLabel = "vs budget";
 
   // A Because card's CTA routes into the view that answers it.
   const followCta = (cta: string) => {
@@ -129,24 +130,38 @@ export default function PerformancePage() {
           }}
         >
           <span className="flex items-center" style={{ gap: 10 }}>
-            <SegmentedControl
-              size="sm"
-              value={period}
-              onValueChange={setPeriod}
-              aria-label="Period"
-              options={POVA_PERIODS.map((pp) => ({ value: pp.id, label: pp.label }))}
-            />
-            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
-              {periodMeta.id} · {periodMeta.range}
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              Four weeks to
             </span>
+            {/* A dropdown rather than three segments: the labels are date ranges
+                now, and three of those side by side is a wall of dates. */}
+            <Select value={period} onValueChange={setPeriod}>
+              <Select.Trigger size="sm" aria-label="Period" className="w-[184px]">
+                <span
+                  className="min-w-0 items-center"
+                  style={{ display: "flex", gap: 7, whiteSpace: "nowrap" }}
+                >
+                  <CalendarBlank
+                    size={15}
+                    weight="duotone"
+                    className="shrink-0"
+                    style={{ color: "var(--text-secondary)" }}
+                  />
+                  <Select.Value />
+                </span>
+              </Select.Trigger>
+              <Select.Content>
+                {POVA_PERIODS.map((pp) => (
+                  <Select.Item key={pp.id} value={pp.id}>
+                    {pp.label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
           </span>
-          <SegmentedControl
-            size="sm"
-            value={comparison}
-            onValueChange={(v) => setComparison(v as PovaComparison)}
-            aria-label="Comparison"
-            options={POVA_COMPARISONS.map((c) => ({ value: c.id, label: c.label }))}
-          />
+          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+            actual vs budget
+          </span>
         </div>
       )}
 
@@ -205,7 +220,7 @@ export default function PerformancePage() {
               view that answers its "why". */}
           <Panel
             title={`Plant operating variance · actual ${comparisonLabel}`}
-            scope={`${periodMeta.id} · ${comparisonLabel} · click a row for the breakdown`}
+            scope={`${periodMeta.label} · ${comparisonLabel} · click a row for the breakdown`}
           >
             <PovaTable
               rows={pova.rows}
@@ -218,7 +233,7 @@ export default function PerformancePage() {
           </Panel>
 
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title={`Variance ${comparisonLabel} · by plant`} scope={`${periodMeta.id} · worst first`}>
+            <Panel title={`Variance ${comparisonLabel} · by plant`} scope={`${periodMeta.label} · worst first`}>
               <div className="flex flex-col" style={{ gap: 8 }}>
                 {pova.byPlant.map((p) => (
                   <div key={p.plant} className="flex items-center justify-between" style={{ gap: 12 }}>

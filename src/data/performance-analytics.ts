@@ -53,10 +53,17 @@ export interface PovaPeriod {
   label: string;
   range: string;
 }
+/*
+ * Labelled by the dates they cover, not by their period number. "P13" is real
+ * finance shorthand for the 13th four-week period, but on a screen whose other
+ * controls name plants it reads as one, and nobody outside the close knows
+ * which weeks P13 is. The id keeps the period number, because that is what the
+ * ledger joins on.
+ */
 export const POVA_PERIODS: ReadonlyArray<PovaPeriod> = [
-  { id: "P12", label: "P12", range: "29 Jun – 26 Jul" },
-  { id: "P13", label: "P13", range: "27 Jul – 23 Aug" },
-  { id: "P14", label: "P14", range: "24 Aug – 20 Sep" },
+  { id: "P12", label: "29 Jun – 26 Jul", range: "29 Jun – 26 Jul" },
+  { id: "P13", label: "27 Jul – 23 Aug", range: "27 Jul – 23 Aug" },
+  { id: "P14", label: "24 Aug – 20 Sep", range: "24 Aug – 20 Sep" },
 ];
 export const POVA_CURRENT_PERIOD = "P13";
 export type PovaComparison = "budget" | "prior" | "ly";
@@ -125,7 +132,7 @@ const POVA_BASE: ReadonlyArray<PovaBase> = [
     category: "Overtime",
     actual13: 171, budget: 124, ly: 130, perSyAct13: 0.087, perSyBud: 0.063,
     factor: { P12: 0.80, P13: 1, P14: 0.90 },
-    affects: ["3.2"], drillsTo: { label: "Labor · P13 tracker", view: "labor" },
+    affects: ["3.2"], drillsTo: { label: "Labor · OT tracker", view: "labor" },
   },
   {
     category: "Waste and scrap",

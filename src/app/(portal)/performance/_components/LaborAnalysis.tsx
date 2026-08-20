@@ -339,7 +339,7 @@ export default function LaborAnalysis({
 
       {/* The portal interprets; the ERP itemizes. */}
       <div className="flex items-center justify-end flex-wrap" style={{ gap: 16 }}>
-        {["Cost-center + employee detail → P13 tracker", "Budget lines → TM1", "Downtime → Ignition"].map((x) => (
+        {["Cost-center + employee detail → OT tracker", "Budget lines → TM1", "Downtime → Ignition"].map((x) => (
           <span key={x} className="type-caption inline-flex items-center" style={{ gap: 4, color: "var(--color-iris-700)" }}>
             {x} <ArrowSquareOut size={11} />
           </span>
