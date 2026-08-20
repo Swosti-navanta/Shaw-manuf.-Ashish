@@ -1,24 +1,27 @@
 "use client";
 
 import { ArrowRight, Check } from "@phosphor-icons/react";
-import { AiStar, Button } from "@navanta-ai/design-system";
+import {
+  AiStar,
+  Button,
+  DataTable,
+  TableShell,
+  type DataTableColumn,
+} from "@navanta-ai/design-system";
 import { useRun } from "@/context/RunContext";
 import { ATTENTION_OVERALL, type AttentionItem } from "@/data/attention";
-import { HORIZON_LABEL, MAKE_ACTIONS } from "@/types/action";
+import { MAKE_ACTIONS } from "@/types/action";
 
 /**
  * The seam between analysis and decision, on the Overall read.
  *
- * Built on the treatment the Labor analysis already uses for the same job —
- * iris ground, the star, and one primary route to Make — because it IS the
- * same job, and a second visual language for "the engine raised this" would
- * teach people that the two pages are different products.
+ * A table rather than a stack of cards, and the same table the queue on Make
+ * is: these rows become those rows, so reading them in one shape and deciding
+ * them in another would hide that they are the same things.
  *
- * What it adds over that footer is the per-item detail the POVA read needs:
- * the limit that fired, quoted rather than summarised, and the clock the
- * decision runs on. The rule is quoted so the argument can be with the limit —
- * a setting someone chose on Thresholds — rather than with the figure it
- * produced.
+ * The rule travels with each row, quoted rather than summarised, so the
+ * argument can be with the limit — a setting someone chose on Thresholds —
+ * instead of with the figure it produced.
  */
 export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string) => void }) {
   const { status, workOrderRaised } = useRun();
@@ -29,130 +32,166 @@ export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string)
   const decidedLabel = (item: AttentionItem): string | null => {
     const action = MAKE_ACTIONS.find((a) => a.id === item.actionId);
     if (!action) return null;
-    if (action.kind === "resequence" && status !== "open") return "Re-sequenced on Make";
-    if (action.kind === "workorder" && workOrderRaised) return "Work order raised on Make";
+    if (action.kind === "resequence" && status !== "open") return "Re-sequenced";
+    if (action.kind === "workorder" && workOrderRaised) return "Work order raised";
     return null;
   };
 
   const live = ATTENTION_OVERALL.filter((i) => !decidedLabel(i));
   const open = live.length;
 
-  return (
-    <div
-      className="flex flex-col"
-      style={{
-        gap: 10,
-        padding: 14,
-        borderRadius: 12,
-        background: open > 0 ? "var(--color-iris-50)" : "var(--surface-raised)",
-        border: `1px solid ${open > 0 ? "var(--color-iris-200)" : "var(--border-default)"}`,
-      }}
-    >
-      <span
-        className="type-body inline-flex items-start"
-        style={{ gap: 8, color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
-      >
-        <AiStar size={15} style={{ marginTop: 2, flexShrink: 0 }} />
-        <span>
-          {open > 0 ? (
-            <>
-              <strong style={{ color: "var(--ds-text-primary)" }}>
-                This analysis surfaced {open} thing{open === 1 ? "" : "s"} that may need a call.
-              </strong>{" "}
-              Decisions aren&apos;t taken here — they&apos;re raised on Make, where the whole
-              plant&apos;s calls sit in one queue.
-            </>
-          ) : (
-            <>
-              <strong style={{ color: "var(--ds-text-primary)" }}>Nothing to raise.</strong>{" "}
-              Everything this read surfaced has been decided.
-            </>
-          )}
-        </span>
-      </span>
-
-      {ATTENTION_OVERALL.map((item) => {
-        const done = decidedLabel(item);
-        return (
-          <div
-            key={item.id}
-            className="flex flex-col"
+  const columns: DataTableColumn<AttentionItem>[] = [
+    {
+      key: "subject",
+      label: "What crossed",
+      alwaysVisible: true,
+      /* Fixed, and the caption truncates inside it. The detail is a sentence,
+         and a sentence in an unbounded column widens the table until the
+         columns after it are pushed off the edge. */
+      width: 380,
+      cell: (row) => (
+        <span className="flex flex-col min-w-0" style={{ gap: 1 }}>
+          <span className="type-body-medium truncate" style={{ color: "var(--ds-text-primary)" }}>
+            {row.subject}
+          </span>
+          {/* Wraps rather than truncates: this line carries the argument —
+              "85% traces to downtime, not staffing" — and half of that
+              sentence is worse than none of it. DataTable sets nowrap on its
+              cell wrapper, so the override has to be here. */}
+          <span
+            className="type-caption"
             style={{
-              gap: 5,
-              padding: "11px 13px",
-              borderRadius: 10,
-              border: "1px solid var(--border-light)",
-              background: "var(--surface-base)",
+              color: "var(--ds-text-secondary)",
+              whiteSpace: "normal",
+              lineHeight: 1.4,
             }}
           >
-            <span className="flex items-center flex-wrap" style={{ gap: 8 }}>
-              <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
-                {item.subject}
-              </span>
-              {/* Neutral: a horizon is not a severity. "This shift" is sooner
-                  than "this quarter", not worse than it, and colouring it as a
-                  warning would rank the queue by the wrong thing. */}
-              <span
-                className="type-caption"
-                style={{
-                  padding: "1px 8px",
-                  borderRadius: 999,
-                  background: "var(--surface-raised)",
-                  border: "1px solid var(--border-default)",
-                  color: "var(--ds-text-secondary)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {HORIZON_LABEL[item.horizon]}
-              </span>
-              <span
-                className="type-body-medium"
-                style={{
-                  marginLeft: "auto",
-                  fontVariantNumeric: "tabular-nums",
-                  color: done ? "var(--ds-text-secondary)" : "var(--text-danger)",
-                }}
-              >
-                {done ? "decided" : item.exposure}
-              </span>
-            </span>
+            {row.detail}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "rule",
+      label: "Rule that fired",
+      width: 250,
+      cell: (row) => (
+        <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+          {row.rule}
+        </span>
+      ),
+    },
+    {
+      key: "exposure",
+      label: "Exposure",
+      width: 118,
+      align: "right" as const,
+      cell: (row) => {
+        const done = decidedLabel(row);
+        return (
+          <span
+            className="type-body-medium"
+            style={{
+              fontVariantNumeric: "tabular-nums",
+              color: done ? "var(--ds-text-secondary)" : "var(--text-danger)",
+            }}
+          >
+            {done ? "decided" : row.exposure}
+          </span>
+        );
+      },
+    },
+    {
+      key: "action",
+      label: "Action",
+      width: 132,
+      align: "right" as const,
+      stopRowClick: true,
+      cell: (row) => {
+        const done = decidedLabel(row);
+        return done ? (
+          <span
+            className="type-caption inline-flex items-center"
+            style={{ gap: 5, color: "var(--text-success, #15803d)", fontWeight: 600 }}
+          >
+            <Check size={12} weight="bold" />
+            {done}
+          </span>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => onOpenMake(row.actionId)}>
+            Open
+          </Button>
+        );
+      },
+    },
+  ];
 
+  return (
+    <TableShell
+      title="What crossed a limit"
+      totalItems={ATTENTION_OVERALL.length}
+      currentPage={1}
+      onPageChange={() => {}}
+      pageSize={25}
+      onPageSizeChange={() => {}}
+      /* Nothing here is column-configurable: four fixed facts about a breach. */
+      customize={false}
+      header={
+        <div style={{ padding: "0 16px 14px" }}>
+          <span
+            className="flex items-start justify-between flex-wrap"
+            style={{
+              gap: 12,
+              padding: "11px 13px",
+              borderRadius: 10,
+              background: "var(--color-iris-50)",
+              border: "1px solid var(--color-iris-200)",
+            }}
+          >
+            <span className="flex items-start" style={{ gap: 9, minWidth: 0 }}>
+            <AiStar size={15} style={{ marginTop: 1, flexShrink: 0 }} />
             <span
-              className="type-caption"
+              className="type-body"
               style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
             >
-              {item.detail}
+              {open > 0 ? (
+                <>
+                  <strong style={{ color: "var(--ds-text-primary)" }}>
+                    This analysis surfaced {open} thing{open === 1 ? "" : "s"} that may need a call.
+                  </strong>{" "}
+                  Decisions aren&apos;t taken here — they&apos;re raised on Make, where the whole
+                  plant&apos;s calls sit in one queue.
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: "var(--ds-text-primary)" }}>Nothing to raise.</strong>{" "}
+                  Everything this read surfaced has been decided.
+                </>
+              )}
             </span>
-
-            <span className="type-caption" style={{ color: "var(--ds-text-placeholder, var(--text-muted))" }}>
-              rule: {item.rule}
             </span>
-
-            {done && (
-              <span
-                className="type-caption inline-flex items-center"
-                style={{ gap: 5, color: "var(--text-success, #15803d)", fontWeight: 600 }}
+            {open > 0 && (
+              <Button
+                variant="primary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => onOpenMake(live[0].actionId)}
+                iconRight={<ArrowRight size={14} weight="bold" />}
               >
-                <Check size={12} weight="bold" />
-                {done}
-              </span>
+                See {open} on Make
+              </Button>
             )}
-          </div>
-        );
-      })}
-
-      {open > 0 && (
-        <span className="flex justify-end">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => onOpenMake(live[0].actionId)}
-            iconRight={<ArrowRight size={14} weight="bold" />}
-          >
-            See {open} on Make
-          </Button>
-        </span>
-      )}
-    </div>
+          </span>
+        </div>
+      }
+    >
+      <DataTable<AttentionItem>
+        columns={columns}
+        data={ATTENTION_OVERALL}
+        rowKey={(r) => r.id}
+        rowHeight={72}
+        rowBorderColor="#F1F3F5"
+      />
+    </TableShell>
   );
 }

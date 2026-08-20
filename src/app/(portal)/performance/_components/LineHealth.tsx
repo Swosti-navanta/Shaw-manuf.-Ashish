@@ -65,80 +65,22 @@ export default function LineHealth({
   const { startTask } = useChatPanel();
   const agent = profile.agents[0] ?? "Rowan";
 
-  // One flow at a time: the strip picks the stage, the table lists every
-  // machine in that flow, a row click points the workbench at that machine,
-  // and clicking the machine's name opens its decision brief.
+  /* Every machine on the line, worst first. The table used to be scoped to a
+     stage picked on the process-flow strip; with the strip gone there is no
+     way to pick one, so scoping would only hide machines behind a control that
+     no longer exists. */
   const rank = (s: StageStatus) => (s === "under" ? 2 : s === "watched" ? 1 : 0);
-  const hotStage = [...PROCESS_STAGES].sort((a, b) => rank(b.status) - rank(a.status))[0];
-  const [stageId, setStageId] = useState(hotStage.id);
-  const stageMachines = machinesFor(stageId);
-  const hotMachine = (pool: ReadonlyArray<MachineRow>) =>
-    [...pool].sort((a, b) => rank(b.status) - rank(a.status))[0];
-  const [machineId, setMachineId] = useState(hotMachine(stageMachines)?.id ?? MACHINES[0].id);
-  const machine = stageMachines.find((m) => m.id === machineId) ?? stageMachines[0] ?? MACHINES[0];
-
-  const selectStage = (id: string) => {
-    setStageId(id);
-    const hot = hotMachine(machinesFor(id));
-    if (hot) setMachineId(hot.id);
-  };
-
-  const stageName = PROCESS_STAGES.find((s) => s.id === stageId)?.name ?? stageId;
+  const rows = [...MACHINES].sort((a, b) => rank(b.status) - rank(a.status));
+  const [machineId, setMachineId] = useState(rows[0]?.id ?? MACHINES[0].id);
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      {/* The machine-layer scorecard — is the machine layer costing money, and
-          where. The shade-critical tile is a decision, not a gauge: it opens
-          the re-sequence deck that guards the fixed date. */}
-      <div
-        className="grid"
-        style={{ gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(212px, 1fr))" }}
-      >
-        {MACHINE_HEALTH_KPIS.map((k) => (
-          <MachineKpiTile key={k.key} kpi={k} onOpenAction={onOpenAction} />
-        ))}
-      </div>
-
-      {/* Process flow — the map. Click a stage to inspect its machines. */}
-      <Panel title="Process flow · live · Line A" scope="click a stage to inspect its machines">
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(136px, 1fr))", gap: 8 }}
-        >
-          {PROCESS_STAGES.map((s, i) => (
-            <StageChip
-              key={s.id}
-              index={i + 1}
-              stage={s}
-              active={s.id === stageId}
-              onClick={() => selectStage(s.id)}
-            />
-          ))}
-        </div>
-      </Panel>
-
-      {/* Trend workbench — the selected machine's own Ignition pens. Driven by
-          clicking a row in the machines table below. */}
-      <Workbench
-        machine={machine}
-        onDetail={() =>
-          startTask(
-            machineActionTask(
-              machine.id,
-              machine.role,
-              { label: "Explain", owner: "understand", autoLog: false },
-              agent,
-            ),
-          )
-        }
-      />
-
       {/* Machines table — every machine in the selected flow. Row click points
           the workbench at that machine; the machine's name opens its brief. */}
       <MachinesTable
-        rows={stageMachines}
-        title={`Machines · ${stageName}`}
-        focusedId={machine.id}
+        rows={rows}
+        title="Machines · Line A"
+        focusedId={machineId}
         onFocusMachine={setMachineId}
         onRun={(m, a) =>
           startTask(

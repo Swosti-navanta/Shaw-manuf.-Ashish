@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AiStar, Button, LineChart, SegmentedControl, Select } from "@navanta-ai/design-system";
+import { AiStar, Button, LineChart, PageHeading, SegmentedControl, Select } from "@navanta-ai/design-system";
 import { CalendarBlank, DownloadSimple, X } from "@phosphor-icons/react";
 import { useChatPanel } from "@/context/ChatPanelContext";
 import {
@@ -82,44 +82,22 @@ export default function PerformancePage() {
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <header className="flex items-start justify-between flex-wrap" style={{ gap: 16 }}>
-        <div className="flex flex-col" style={{ gap: 4 }}>
-          <span
-            style={{
-              fontSize: 10,
-              letterSpacing: "0.11em",
-              textTransform: "uppercase",
-              color: "var(--ds-text-placeholder, var(--text-muted))",
-            }}
-          >
-            Performance · Roll-up · All plants
-          </span>
-          <h1
-            style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--ds-text-primary)" }}
-          >
-            Where the money is and where the line is hurting
-          </h1>
-          <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-            POVA is the financial read — actual against budget across the eight categories the plant
-            SOPs define. Manufacturing, Machine health and Labor each answer why a category moved.
-            What crosses a threshold becomes a decision on Make.
-          </p>
-        </div>
-        {/* Export the current period's reports. Visual for now — the wiring to
-            a TM1 / CSV pull lands when the data source is connected. */}
-        <Button variant="outline" size="sm" iconLeft={<DownloadSimple size={14} weight="bold" />}>
-          Export
-        </Button>
-      </header>
+      <PageHeading
+        title="Where the money is and where the line is hurting"
+        subtitle="Performance · Roll-up · All plants. POVA is the financial read — actual against budget across the eight categories the plant SOPs define. Manufacturing, Machine health and Labor each answer why a category moved. What crosses a threshold becomes a decision on Make."
+      />
 
       {/* One control row: which analysis, then which four weeks. They were
           stacked, which read as two unrelated toolbars — and the period only
           ever qualifies the view sitting next to it. */}
-      <div className="flex items-center justify-between flex-wrap" style={{ gap: 12 }}>
+      <div className="flex items-center flex-wrap" style={{ gap: 12 }}>
         <SegmentedControl
           value={view}
           onValueChange={(v) => setView(v as View)}
           aria-label="Performance view"
+          /* The DS's own step down from the default pill — a full-round track
+             this wide reads as a lozenge rather than a control. */
+          radius="md"
           options={[
             { value: "exec", label: "Overall" },
             { value: "mfg", label: "Manufacturing" },
@@ -128,17 +106,13 @@ export default function PerformancePage() {
           ]}
         />
 
-        {/* The period is POVA's clock, and POVA is the Overall view. The other
-            views are the "why" behind it — Manufacturing and Labor carry their
-            own time framing (12-period, 3wk MA) and have no budget variance to
-            compare against, so it would only mislead there; Machine health is
-            live and keeps its own realtime/historical toggle. */}
-        {view === "exec" && (
-          <span className="flex items-center flex-wrap" style={{ gap: 10 }}>
+        {/* Every view is scoped by the same four weeks, so the control sits on
+            the row rather than inside one tab. */}
+        <span className="flex items-center flex-wrap" style={{ gap: 10, marginLeft: "auto" }}>
               {/* A dropdown rather than three segments: the labels are date ranges
                   now, and three of those side by side is a wall of dates. */}
               <Select value={period} onValueChange={setPeriod}>
-                <Select.Trigger size="sm" aria-label="Period" className="w-[212px]">
+                <Select.Trigger size="md" aria-label="Period" className="w-[212px]">
                   <span
                     className="min-w-0 items-center"
                     style={{ display: "flex", gap: 7, whiteSpace: "nowrap" }}
@@ -164,8 +138,14 @@ export default function PerformancePage() {
                   ))}
                 </Select.Content>
               </Select>
-          </span>
-        )}
+        </span>
+
+        {/* Beside the period rather than under the heading, because what it
+            writes out is that period's report. Visual for now — the wiring to
+            a TM1 / CSV pull lands when the source is connected. */}
+        <Button variant="outline" size="md" iconLeft={<DownloadSimple size={15} weight="bold" />}>
+          Export
+        </Button>
       </div>
 
       {view === "exec" && (

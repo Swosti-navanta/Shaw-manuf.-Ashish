@@ -8,6 +8,7 @@ import {
   Button,
   DataTable,
   EmptyState,
+  PageHeading,
   TableShell,
   type DataTableColumn,
 } from "@navanta-ai/design-system";
@@ -197,16 +198,14 @@ function MakeQueue() {
         key: "raised",
         label: "Raised by",
         width: 108,
+        /* The agent, marked as one. The timestamp is gone: a queue worked
+           through a shift is read by what needs deciding, not by when it was
+           noticed, and the minute it was raised never changed anyone's call. */
         cell: (row) => (
-          <span className="flex flex-col" style={{ gap: 1 }}>
+          <span className="inline-flex items-center" style={{ gap: 6 }}>
+            <AiStar size={13} />
             <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
               {row.agent}
-            </span>
-            <span
-              className="type-caption"
-              style={{ color: "var(--ds-text-secondary)", fontVariantNumeric: "tabular-nums" }}
-            >
-              {row.at}
             </span>
           </span>
         ),
@@ -284,35 +283,10 @@ function MakeQueue() {
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <header className="flex flex-col" style={{ gap: 4 }}>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.11em",
-            textTransform: "uppercase",
-            color: "var(--ds-text-placeholder, var(--text-muted))",
-          }}
-        >
-          Make · Rowan · {plantLabel(plant)}
-        </span>
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            letterSpacing: "-0.01em",
-            color: "var(--ds-text-primary)",
-          }}
-        >
-          {counts.person > 0
-            ? `${counts.person} decision${counts.person === 1 ? " needs" : "s need"} you this shift`
-            : "Nothing needs you this shift"}
-        </h1>
-        <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          One queue, four analyses behind it — Overall, Manufacturing, Machine health and Labor on
-          Performance each raise what needs a person here, with the options already costed.{" "}
-          {profile.name} owns the call.
-        </p>
-      </header>
+      <PageHeading
+        title={`${counts.person} decision${counts.person === 1 ? "" : "s"} need${counts.person === 1 ? "s" : ""} you this shift`}
+        subtitle={`Make · ${profile.agents[0] ?? "Rowan"} · ${plantLabel(plant)}. One queue, four analyses behind it — Overall, Manufacturing, Machine health and Labor on Performance each raise what needs a person here, with the options already costed. ${profile.name} owns the call.`}
+      />
 
       <TableShell
         title="Decision queue"

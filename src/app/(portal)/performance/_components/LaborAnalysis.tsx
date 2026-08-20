@@ -97,28 +97,36 @@ export default function LaborAnalysis({
         </span>
       </div>
 
-      {/* The verdict — answer first, then the chain that proves it. */}
+      {/* The verdict — answer first, then the chain that proves it.
+          Marked as the engine's, because it is: "85% of this is a symptom, not
+          a staffing gap" is a claim something made by joining downtime to the
+          roster, not a figure read off a ledger. The app spends iris on agent
+          contributions and nothing else, so the reader can tell at a glance
+          which sentences on a page were reasoned and which were retrieved. */}
       <div
+        className="flex items-start"
         style={{
+          gap: 10,
           padding: "13px 16px",
-          borderRadius: "0 12px 12px 0",
-          background: "var(--surface-base)",
-          border: "1px solid var(--border-default)",
-          borderLeft: `3px solid ${verdictInk}`,
-          boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
+          borderRadius: 12,
+          background: "var(--color-iris-50)",
+          border: "1px solid var(--color-iris-200)",
         }}
       >
-        <span style={{ fontSize: 16, fontWeight: 600, color: "var(--ds-text-primary)" }}>
-          {proc.name} overtime is{" "}
-          <span style={{ color: verdictInk, fontVariantNumeric: "tabular-nums" }}>{proc.verdict.amount}</span>
-          {" · "}
-          <span style={{ fontVariantNumeric: "tabular-nums" }}>
-            {proc.verdict.actual} vs {proc.verdict.budget}
+        <AiStar size={16} style={{ marginTop: 3, flexShrink: 0 }} />
+        <span className="flex flex-col">
+          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--ds-text-primary)" }}>
+            {proc.name} overtime is{" "}
+            <span style={{ color: verdictInk, fontVariantNumeric: "tabular-nums" }}>{proc.verdict.amount}</span>
+            {" · "}
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {proc.verdict.actual} vs {proc.verdict.budget}
+            </span>
           </span>
+          <p className="type-body" style={{ color: "var(--ds-text-secondary)", marginTop: 5, lineHeight: 1.5 }}>
+            <strong style={{ color: "var(--ds-text-primary)" }}>{proc.verdict.lead}</strong> {proc.verdict.rest}
+          </p>
         </span>
-        <p className="type-body" style={{ color: "var(--ds-text-secondary)", marginTop: 5, lineHeight: 1.5 }}>
-          <strong style={{ color: "var(--ds-text-primary)" }}>{proc.verdict.lead}</strong> {proc.verdict.rest}
-        </p>
       </div>
 
       {/* The causal chain — the join a spreadsheet can't make. */}
