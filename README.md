@@ -48,6 +48,13 @@ npm run dev
 
 ## Deploying
 
+Azure App Service is the deployment target, at
+**https://shaw-mfg.azurewebsites.net**. See
+[infra/azure/README.md](infra/azure/README.md) for the ordered deploy steps, the
+provisioning script, the free-tier limits, and why this is not Static Web Apps.
+
+The notes below cover the Vercel deployment.
+
 The same `GITHUB_TOKEN` must exist as an environment variable on the host, or
 `npm install` cannot resolve `@navanta-ai/design-system` and the build fails.
 

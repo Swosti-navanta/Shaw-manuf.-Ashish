@@ -1,0 +1,81 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A second push while a deploy is in flight should replace it, not race it.
+concurrency:
+  group: azure-app-service-production
+  cancel-in-progress: true
+
+env:
+  AZURE_WEBAPP_NAME: shaw-mfg
+  NODE_VERSION: 22.x
+  # `output: "standalone"` in next.config.ts writes the self-contained server
+  # here. The bundle is completed in place, then zipped.
+  STANDALONE_DIRECTORY: .next/standalone
+  DEPLOY_PACKAGE: shaw-mfg-standalone.zip
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # @navanta-ai/design-system is a private GitHub Packages package.
+      packages: read
+
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.webapp-url }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # .npmrc substitutes ${GITHUB_TOKEN} at install time. The workflow's own
+      # token can read packages owned by this org; PACKAGES_READ_TOKEN is the
+      # escape hatch for when the package's access list omits this repository —
+      # that failure surfaces as a 401 from npm.pkg.github.com, not a 404.
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: npm run build
+
+      # Standalone ships a pruned node_modules and its own server.js, but Next
+      # deliberately leaves out public/ and .next/static — without them the app
+      # boots and then 404s every asset. startup.sh is the entrypoint App
+      # Service is configured to run.
+      - name: Assemble the standalone bundle
+        run: |
+          cp -R public "${STANDALONE_DIRECTORY}/public"
+          cp -R .next/static "${STANDALONE_DIRECTORY}/.next/static"
+          cp infra/azure/startup.sh "${STANDALONE_DIRECTORY}/startup.sh"
+
+      # Zipping here rather than letting the deploy action walk the directory:
+      # a pruned node_modules is still thousands of files, and one upload of one
+      # archive is both faster and reproducible.
+      - name: Package the bundle
+        run: |
+          cd "${STANDALONE_DIRECTORY}"
+          zip --quiet --recurse-paths "${GITHUB_WORKSPACE}/${DEPLOY_PACKAGE}" .
+
+      - name: Deploy to ${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.DEPLOY_PACKAGE }}
