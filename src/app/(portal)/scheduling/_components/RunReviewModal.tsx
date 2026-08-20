@@ -12,10 +12,14 @@ import type { PlacedRun } from "./board-layout";
 import { clockAt } from "./board-layout";
 import DrillLink from "@/components/ui/DrillLink";
 
-type DeckTab = "timing" | "commitment" | "rules";
+type DeckTab = "timing" | "route" | "commitment" | "rules";
 
 const TABS: { id: DeckTab; label: string }[] = [
   { id: "timing", label: "Timing" },
+  /* Its own tab rather than a section under Timing: this run's clock and the
+     whole material's route are different questions, and the route was the
+     longest thing on a tab that had already answered its own. */
+  { id: "route", label: "Through the plant" },
   { id: "commitment", label: "What it's committed to" },
   { id: "rules", label: "Rules it touches" },
 ];
@@ -219,14 +223,8 @@ export default function RunReviewModal({
               />
             )}
 
-            {tab === "timing" && journey.length > 1 && (
+            {tab === "route" && (
               <div className="flex flex-col" style={{ gap: 8 }}>
-                <span
-                  className="type-body-medium"
-                  style={{ color: "var(--ds-text-primary)" }}
-                >
-                  Through the plant
-                </span>
                 <div
                   className="rounded-xl"
                   style={{ background: "var(--surface-raised)", padding: "12px 16px" }}
