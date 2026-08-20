@@ -1146,6 +1146,16 @@ const formatHours = (h: number) =>
  * thing with its own number. Using one identifier everywhere would have meant
  * showing a dye lot on a belt where dye hasn't happened.
  */
+/**
+ * The caption under a run's name: which material, and how much of it.
+ *
+ * The identifier changes by stage because the material does — greige carries a
+ * draw, colour carries a dye lot, and a finished roll carries a roll number.
+ * The order count does NOT change, and used to: it showed on tufting and
+ * finishing and vanished in between, so one lot read as two orders, then
+ * nothing, then two orders again. Lighting a route made that obvious. It is on
+ * every stage now, because it is the same material throughout.
+ */
 function runSubline(run: Run, process?: string): string {
   const orders = run.orders ?? (run.order ? 1 : 0);
   const count = orders ? `${orders} order${orders === 1 ? "" : "s"}` : null;
@@ -1155,7 +1165,7 @@ function runSubline(run: Run, process?: string): string {
   }
   if (process === "Dyeing" || process === "Backing") {
     const yarn = run.yarn ?? (run.dyeLot ? YARN_FOR_DYE[run.dyeLot] : undefined);
-    return [yarn, run.dyeLot].filter(Boolean).join(" · ") || (count ?? "");
+    return [yarn, run.dyeLot, count].filter(Boolean).join(" · ");
   }
   // Tufting, and anything else that hasn't been dyed.
   return [run.yarn ?? run.dyeLot, count].filter(Boolean).join(" · ");
@@ -1350,6 +1360,22 @@ function Ghost({
             }}
           >
             {run.label}
+          </span>
+          {/* The window it is proposed for, on the same line the placed bars
+              carry it. A proposal whose whole point is "here, at this time"
+              should not be the one card that makes you hover to read the
+              time. */}
+          <span
+            className="truncate"
+            style={{
+              fontSize: 9.5,
+              lineHeight: 1.3,
+              color: "var(--color-iris-700)",
+              opacity: 0.62,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {clockAt(start)}–{clockAt(start + hours)}
           </span>
           <span
             className="truncate"
@@ -2036,7 +2062,9 @@ function RunPopover({
   // Fixed and portalled. The track scroller sets `overflow-x: auto`, which
   // makes the cross axis a clipping context too, so anything drawn inside it
   // gets its bottom sliced off. A popover has to leave that box entirely.
-  const W = 268;
+  /* Wide enough that the value column stops crowding its label — the rows
+     carry belt names and clock ranges, which are the long ones. */
+  const W = 320;
   const left = Math.max(12, Math.min(anchor.left, window.innerWidth - W - 12));
   const below = anchor.bottom + 8;
   const fitsBelow = below + 220 < window.innerHeight;
@@ -2138,7 +2166,7 @@ function RunPopover({
                   transition: "transform .15s",
                 }}
               />
-              <span style={{ color: "var(--ds-text-secondary)" }}>Through the plant</span>
+              <span style={{ color: "var(--ds-text-secondary)" }}>Timeline</span>
             </span>
             <span
               className="type-caption"
