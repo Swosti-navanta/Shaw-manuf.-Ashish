@@ -2166,7 +2166,7 @@ function RunPopover({
                   transition: "transform .15s",
                 }}
               />
-              <span style={{ color: "var(--ds-text-secondary)" }}>Through the plant</span>
+              <span style={{ color: "var(--ds-text-secondary)" }}>Timeline</span>
             </span>
             <span
               className="type-caption"

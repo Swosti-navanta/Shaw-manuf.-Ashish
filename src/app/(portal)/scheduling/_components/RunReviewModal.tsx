@@ -19,7 +19,7 @@ const TABS: { id: DeckTab; label: string }[] = [
   /* Its own tab rather than a section under Timing: this run's clock and the
      whole material's route are different questions, and the route was the
      longest thing on a tab that had already answered its own. */
-  { id: "route", label: "Through the plant" },
+  { id: "route", label: "Timeline" },
   { id: "commitment", label: "What it's committed to" },
   { id: "rules", label: "Rules it touches" },
 ];
