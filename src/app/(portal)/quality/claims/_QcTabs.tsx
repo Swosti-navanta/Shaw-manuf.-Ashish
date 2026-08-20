@@ -220,19 +220,23 @@ export default function QcTabs() {
       isFiltered={activeFilter !== "all"}
       header={
         <>
-          {/* The tab row lives in the header slot rather than in TableShell's
-              own `tabs` prop, for one reason: TableShell renders its filter
-              chips on a separate row ABOVE the tabs and hands `Tabs` no
-              rightSlot, so watch/flag could not sit beside the tab labels.
-              The DS `Tabs` component does take a rightSlot — so the shell
-              keeps the chrome and the footer, and the tab row is composed
-              here where the chips can ride on its right edge. */}
-          {/* No inset of its own: the DS Tabs tablist already carries px-4,
-              and adding 16px here doubled it, pushing the tabs in past the
-              card's title. */}
-          <div style={{ borderBottom: "1px solid var(--border-light)" }}>
+          {/* The tab row is composed here rather than handed to TableShell's
+              `tabs` prop, because TableShell puts its filter chips on a row of
+              their own ABOVE the tabs, and they belong beside them.
+
+              The chips are a SIBLING of Tabs, not its `rightSlot`: rightSlot is
+              only implemented inside the component's `underline-pill` branch,
+              so on `underline` it silently renders nothing. A flex row gets the
+              same result for any variant.
+
+              No inset of its own on the left — the Tabs tablist already carries
+              px-4, and adding to it pushed the tabs past the card's title. */}
+          <div
+            className="flex items-center justify-between"
+            style={{ gap: 12, paddingRight: 16, borderBottom: "1px solid var(--border-light)" }}
+          >
             <Tabs
-              variant="underline-pill"
+              variant="underline"
               tabs={[
                 { id: "yarn", label: "Yarn QC", badge: 42 },
                 { id: "dye", label: "Dye-lot QC", badge: 3, tone: "critical" },
@@ -245,29 +249,27 @@ export default function QcTabs() {
                 setFilter("all");
                 reset();
               }}
-              rightSlot={
-                chips && chips.length ? (
-                  <span className="inline-flex items-center" style={{ gap: 6 }}>
-                    {chips.map((ch) => (
-                      <Chip
-                        key={ch.f}
-                        selected={activeFilter === ch.f}
-                        count={ch.count}
-                        onClick={() => {
-                          /* Clicking the active chip clears back to All rather
-                             than being inert — a selected toggle that does
-                             nothing reads as broken. */
-                          setFilter(activeFilter === ch.f ? "all" : ch.f);
-                          reset();
-                        }}
-                      >
-                        {ch.label}
-                      </Chip>
-                    ))}
-                  </span>
-                ) : undefined
-              }
             />
+            {chips && chips.length ? (
+              <span className="inline-flex items-center shrink-0" style={{ gap: 6 }}>
+                {chips.map((ch) => (
+                  <Chip
+                    key={ch.f}
+                    selected={activeFilter === ch.f}
+                    count={ch.count}
+                    onClick={() => {
+                      /* Clicking the active chip clears back to All rather than
+                         being inert — a selected toggle that does nothing reads
+                         as broken. */
+                      setFilter(activeFilter === ch.f ? "all" : ch.f);
+                      reset();
+                    }}
+                  >
+                    {ch.label}
+                  </Chip>
+                ))}
+              </span>
+            ) : null}
           </div>
 
         <div className="flex flex-col" style={{ gap: 14, padding: "14px 16px" }}>
