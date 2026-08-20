@@ -43,6 +43,15 @@ export const FAMILY_COLOR: Record<StyleFamily, string> = {
   cascade: "#3F3F47",
 };
 
+/** How a family is written when it is named rather than only coloured. The
+ *  keys are ids; a panel that prints one raw says "aria". */
+export const FAMILY_LABEL: Record<StyleFamily, string> = {
+  aria: "Aria",
+  dune: "Dune",
+  meridian: "Meridian",
+  cascade: "Cascade",
+};
+
 export const FAMILY_DEPTH: Record<StyleFamily, number> = {
   aria: 1,
   dune: 2,

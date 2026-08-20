@@ -1,9 +1,16 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Button, Input, PanelTimeline, Progress, SegmentedControl, Select } from "@navanta-ai/design-system";
-import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus, X } from "@phosphor-icons/react";
+import {
+  Button,
+  DetailPanelShell,
+  Input,
+  PanelTimeline,
+  Progress,
+  SegmentedControl,
+  Select,
+} from "@navanta-ai/design-system";
+import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus } from "@phosphor-icons/react";
 import { useSchedule } from "@/context/ScheduleContext";
 import {
   BACKLOG,
@@ -16,7 +23,7 @@ import {
   WORK_CENTRES,
   YARN_FOR_DYE,
 } from "@/data/schedule-data";
-import { type BacklogItem, type BeltId, type Run } from "@/types/schedule";
+import { FAMILY_LABEL, type BacklogItem, type BeltId, type Run } from "@/types/schedule";
 import DrillLink from "@/components/ui/DrillLink";
 import YarnCone from "@/components/ui/YarnCone";
 import RunDeckModal from "./RunDeckModal";
@@ -213,7 +220,6 @@ export default function ScheduleBoard() {
   const [query, setQuery] = useState("");
   /** Grace timer so the pointer can travel from a card onto one of its lines
    *  without the weave vanishing under it. */
-  const weaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pxPerHour = PX_PER_HOUR;
 
   /** Move the viewport to an hour on the board. The density never changes, so
@@ -1001,7 +1007,6 @@ export default function ScheduleBoard() {
       {detail && !drag && (
         <RunPopover
           runId={detail.runId}
-          anchor={detail.anchor}
           lanes={lanes}
           journey={chainFor(detail.runId, weave)}
           index={beltOrders.backing.indexOf(detail.runId)}
@@ -1854,7 +1859,6 @@ function DragTimeChip({
  */
 function RunPopover({
   runId,
-  anchor,
   lanes,
   journey,
   index,
@@ -1865,7 +1869,6 @@ function RunPopover({
   onClose,
 }: {
   runId: string;
-  anchor: DOMRect;
   lanes: ReadonlyArray<{ code: string; centreName: string; constraint: boolean; layout: LaneLayout }>;
   /** Every stage this material passes through, tufting first. */
   journey: ReadonlyArray<WeaveNode>;
@@ -1876,30 +1879,16 @@ function RunPopover({
   onReview: () => void;
   onClose: () => void;
 }) {
+  /* Escape only. The card used to close on scroll and resize because it was
+     pinned under the bar and would drift away from what it described; a panel
+     is docked to the edge, so scrolling the board to look at the belts it
+     names is now the expected thing to do rather than a reason to dismiss it. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-
-    // Scrolling or resizing moves the bar out from under a fixed card, so the
-    // card goes rather than drifting away from what it describes.
-    //
-    // Registered a frame late on purpose: clicking a bar focuses it, and the
-    // browser scrolls the track container to bring a focused child into view.
-    // That scroll fires in the same tick as the click, so a listener attached
-    // immediately would close the card before it had been seen once.
-    const frame = requestAnimationFrame(() => {
-      window.addEventListener("scroll", onClose, true);
-      window.addEventListener("resize", onClose);
-    });
-
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onClose, true);
-      window.removeEventListener("resize", onClose);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   const laneIndex = lanes.findIndex((l) => l.layout.placed.some((p) => p.run.id === runId));
@@ -1947,83 +1936,104 @@ function RunPopover({
     })(),
   ];
 
-  // Fixed and portalled. The track scroller sets `overflow-x: auto`, which
-  // makes the cross axis a clipping context too, so anything drawn inside it
-  // gets its bottom sliced off. A popover has to leave that box entirely.
-  const W = 268;
-  const left = Math.max(12, Math.min(anchor.left, window.innerWidth - W - 12));
-  const below = anchor.bottom + 8;
-  const fitsBelow = below + 220 < window.innerHeight;
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-label={`${run.label} details`}
-      onPointerDown={(e) => e.stopPropagation()}
-      style={{
-        position: "fixed",
-        left,
-        ...(fitsBelow ? { top: below } : { bottom: window.innerHeight - anchor.top + 8 }),
-        zIndex: 1200,
-        width: W,
-        borderRadius: 10,
-        background: "var(--surface-base)",
-        border: "1px solid var(--border-default)",
-        boxShadow: "0 12px 28px rgba(24,24,27,.18)",
-        overflow: "hidden",
-      }}
+  return (
+    <DetailPanelShell
+      open
+      onClose={onClose}
+      title={run.label}
+      subtitle={`${lane.code} · ${lane.centreName} · ${clockAt(start)}–${clockAt(start + hours)}`}
+      width={420}
+      footer={
+        <span
+          className="flex items-center justify-between flex-wrap"
+          style={{ gap: 10, width: "100%" }}
+        >
+          {inSequence ? (
+            <span className="inline-flex items-center" style={{ gap: 6 }}>
+              <Button
+                variant="outline"
+                size="sm"
+                iconLeft={<CaretLeft size={12} weight="bold" />}
+                disabled={index <= 0}
+                onClick={() => onMove(-1)}
+              >
+                Earlier
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                iconRight={<CaretRight size={12} weight="bold" />}
+                disabled={index >= orderLength - 1}
+                onClick={() => onMove(1)}
+              >
+                Later
+              </Button>
+            </span>
+          ) : (
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              {run.fixed ? "Pinned to its date" : "Not in the nudgeable sequence"}
+            </span>
+          )}
+          <Button variant="primary" size="sm" onClick={onReview}>
+            Review
+          </Button>
+        </span>
+      }
     >
-      <div
-        className="flex items-start justify-between"
-        style={{ gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--border-light)" }}
-      >
-        <span className="flex flex-col" style={{ gap: 1, minWidth: 0 }}>
-          <span className="type-body-medium truncate" style={{ color: "var(--ds-text-primary)" }}>
-            {run.label}
-          </span>
-          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-            {run.fixed ? "Fixed install date — can't move" : "Drag to move · grip to widen"}
+      <div className="flex flex-col" style={{ gap: 16 }}>
+        {/* The cone, at the size the board can't give it. On a bar it is a
+            20px tint doing one job — telling two families apart at a glance.
+            Here there is room for it to be the thing itself, and the family
+            it stands for can be named rather than only coloured. */}
+        <span
+          className="flex items-center"
+          style={{
+            gap: 14,
+            padding: "14px 16px",
+            borderRadius: 12,
+            background: "var(--surface-raised)",
+            border: "1px solid var(--border-light)",
+          }}
+        >
+          <YarnCone colour={run.accent} height={56} title={run.label} />
+          <span className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
+            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
+              {FAMILY_LABEL[run.family]}
+            </span>
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              {run.yarn ?? run.dyeLot ?? run.label}
+            </span>
           </span>
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          style={{ background: "none", cursor: "pointer", padding: 2, lineHeight: 0 }}
-        >
-          <X size={13} weight="bold" color="var(--ds-text-secondary)" />
-        </button>
-      </div>
 
-      <div className="flex flex-col">
-        {rows.map((r, i) => (
-          <span
-            key={r.k}
-            className="flex items-baseline justify-between"
-            style={{
-              gap: 12,
-              padding: "7px 12px",
-              borderTop: i === 0 ? "none" : "1px solid var(--border-light)",
-            }}
-          >
-            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-              {r.k}
+        <div className="flex flex-col">
+          {rows.map((r, i) => (
+            <span
+              key={r.k}
+              className="flex items-baseline justify-between"
+              style={{
+                gap: 12,
+                padding: "8px 0",
+                borderTop: i === 0 ? "none" : "1px solid var(--border-light)",
+              }}
+            >
+              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                {r.k}
+              </span>
+              <span
+                className="type-body"
+                style={{ color: "var(--ds-text-primary)", textAlign: "right" }}
+              >
+                {r.v}
+              </span>
             </span>
-            <span className="type-caption" style={{ color: "var(--ds-text-primary)", textAlign: "right" }}>
-              {r.v}
-            </span>
-          </span>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Where this material has been and where it is going.
-          The board draws one card per stage on its own belt, so a lot's route
-          through the plant is only visible by reading four lanes at once. The
-          stages are the same genealogy the hover overlay used to draw as lines
-          across the board — read here instead, where each one can carry its
-          belt and its clock rather than needing to be hovered to exist. */}
-      {journey.length > 1 && (
-        <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border-light)" }}>
+        {/* Where this material has been and where it is going.
+            The board draws one card per stage on its own belt, so a lot's route
+            through the plant is only visible by reading four lanes at once. */}
+        {journey.length > 1 && (
           <PanelTimeline
             title="Through the plant"
             idPrefix={`run-${run.id}`}
@@ -2043,45 +2053,9 @@ function RunPopover({
               events: [],
             }))}
           />
-        </div>
-      )}
-
-      <div
-        className="flex items-center justify-between flex-wrap"
-        style={{ gap: 8, padding: "9px 12px", borderTop: "1px solid var(--border-light)" }}
-      >
-        {inSequence && !run.fixed ? (
-          <span className="inline-flex items-center" style={{ gap: 6 }}>
-            <Button
-              variant="outline"
-              size="sm"
-              iconLeft={<CaretLeft size={12} weight="bold" />}
-              disabled={index <= 0}
-              onClick={() => onMove(-1)}
-            >
-              Earlier
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              iconRight={<CaretRight size={12} weight="bold" />}
-              disabled={index >= orderLength - 1}
-              onClick={() => onMove(1)}
-            >
-              Later
-            </Button>
-          </span>
-        ) : (
-          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-            {run.fixed ? "Pinned to its date" : "Not in the nudgeable sequence"}
-          </span>
         )}
-        <Button variant="primary" size="sm" onClick={onReview}>
-          Review
-        </Button>
       </div>
-    </div>,
-    document.body,
+    </DetailPanelShell>
   );
 }
 
