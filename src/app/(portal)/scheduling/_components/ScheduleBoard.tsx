@@ -1146,6 +1146,16 @@ const formatHours = (h: number) =>
  * thing with its own number. Using one identifier everywhere would have meant
  * showing a dye lot on a belt where dye hasn't happened.
  */
+/**
+ * The caption under a run's name: which material, and how much of it.
+ *
+ * The identifier changes by stage because the material does — greige carries a
+ * draw, colour carries a dye lot, and a finished roll carries a roll number.
+ * The order count does NOT change, and used to: it showed on tufting and
+ * finishing and vanished in between, so one lot read as two orders, then
+ * nothing, then two orders again. Lighting a route made that obvious. It is on
+ * every stage now, because it is the same material throughout.
+ */
 function runSubline(run: Run, process?: string): string {
   const orders = run.orders ?? (run.order ? 1 : 0);
   const count = orders ? `${orders} order${orders === 1 ? "" : "s"}` : null;
@@ -1155,7 +1165,7 @@ function runSubline(run: Run, process?: string): string {
   }
   if (process === "Dyeing" || process === "Backing") {
     const yarn = run.yarn ?? (run.dyeLot ? YARN_FOR_DYE[run.dyeLot] : undefined);
-    return [yarn, run.dyeLot].filter(Boolean).join(" · ") || (count ?? "");
+    return [yarn, run.dyeLot, count].filter(Boolean).join(" · ");
   }
   // Tufting, and anything else that hasn't been dyed.
   return [run.yarn ?? run.dyeLot, count].filter(Boolean).join(" · ");
