@@ -5,11 +5,20 @@ import { createPortal } from "react-dom";
 import {
   Button,
   Input,
+  PanelTimeline,
   Progress,
   SegmentedControl,
   Select,
 } from "@navanta-ai/design-system";
-import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus, X } from "@phosphor-icons/react";
+import {
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  MagnifyingGlass,
+  PencilSimple,
+  Plus,
+  X,
+} from "@phosphor-icons/react";
 import { useSchedule } from "@/context/ScheduleContext";
 import {
   BACKLOG,
@@ -1094,6 +1103,7 @@ export default function ScheduleBoard() {
             <RunReviewModal
               placed={placed}
               beltName={`${lane.code} · ${lane.centreName}`}
+              journey={chainFor(review, weave)}
               onClose={() => setReview(null)}
             />
           ) : null;
@@ -1961,6 +1971,8 @@ function RunPopover({
   onReview: () => void;
   onClose: () => void;
 }) {
+  const [routeOpen, setRouteOpen] = useState(false);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -2095,21 +2107,72 @@ function RunPopover({
           and does not cost the card the height that was covering it. What
           stays is where the journey starts and ends. */}
       {journey.length > 1 && (
-        <span
-          className="flex items-baseline justify-between"
-          style={{ gap: 12, padding: "8px 12px", borderTop: "1px solid var(--border-light)" }}
-        >
-          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-            Through the plant
-          </span>
-          <span
-            className="type-caption"
-            style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
+        <div style={{ borderTop: "1px solid var(--border-light)" }}>
+          {/* Collapsed by default. The stages are already lit on the board, so
+              the card leads with the shape of the route — how many, and the
+              window it spans — and only takes the height to name them if
+              someone asks for the clock on each one. */}
+          <button
+            type="button"
+            onClick={() => setRouteOpen((v) => !v)}
+            aria-expanded={routeOpen}
+            className="w-full transition-colors hover:bg-[var(--surface-raised)]"
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "8px 12px",
+              background: "none",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
           >
-            {journey.length} stages · {clockAt(journey[0].start)}–
-            {clockAt(journey[journey.length - 1].start + journey[journey.length - 1].hours)}
-          </span>
-        </span>
+            <span className="type-caption inline-flex items-center" style={{ gap: 5 }}>
+              <CaretDown
+                size={10}
+                weight="bold"
+                style={{
+                  color: "var(--ds-text-secondary)",
+                  transform: routeOpen ? "rotate(0deg)" : "rotate(-90deg)",
+                  transition: "transform .15s",
+                }}
+              />
+              <span style={{ color: "var(--ds-text-secondary)" }}>Through the plant</span>
+            </span>
+            <span
+              className="type-caption"
+              style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
+            >
+              {journey.length} stages · {clockAt(journey[0].start)}–
+              {clockAt(journey[journey.length - 1].start + journey[journey.length - 1].hours)}
+            </span>
+          </button>
+
+          {routeOpen && (
+            <div style={{ padding: "0 12px 10px" }}>
+              <PanelTimeline
+                title=""
+                idPrefix={`run-${run.id}`}
+                milestones={journey.map((n) => ({
+                  id: n.runId,
+                  label: `${n.centreName} · ${n.laneCode}`,
+                  /* Position in the route, not wall-clock: the card you opened
+                     is where the material is, everything before it is done and
+                     everything after is still to come. */
+                  status:
+                    n.runId === run.id
+                      ? ("active" as const)
+                      : n.centreIdx < (journey.find((x) => x.runId === run.id)?.centreIdx ?? 0)
+                        ? ("completed" as const)
+                        : ("pending" as const),
+                  date: `${clockAt(n.start)} – ${clockAt(n.start + n.hours)}`,
+                  events: [],
+                }))}
+              />
+            </div>
+          )}
+        </div>
       )}
 
       <div

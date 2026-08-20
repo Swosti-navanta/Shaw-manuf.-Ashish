@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { AiStar, Button, PanelInfoGrid, Tabs } from "@navanta-ai/design-system";
+import { AiStar, Button, PanelInfoGrid, PanelTimeline, Tabs } from "@navanta-ai/design-system";
+import type { WeaveNode } from "./weave";
 import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useSchedule } from "@/context/ScheduleContext";
@@ -37,10 +38,13 @@ const fmt = (h: number) => `${Number(h.toFixed(2)).toString().replace(/\.0+$/, "
 export default function RunReviewModal({
   placed,
   beltName,
+  journey,
   onClose,
 }: {
   placed: PlacedRun;
   beltName: string;
+  /** Every stage this material passes through, tufting first. */
+  journey: ReadonlyArray<WeaveNode>;
   onClose: () => void;
 }) {
   const { order, move, split, toggleSplit, rules, released, reRelease } = useSchedule();
@@ -213,6 +217,39 @@ export default function RunReviewModal({
                   },
                 ]}
               />
+            )}
+
+            {tab === "timing" && journey.length > 1 && (
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <span
+                  className="type-body-medium"
+                  style={{ color: "var(--ds-text-primary)" }}
+                >
+                  Through the plant
+                </span>
+                <div
+                  className="rounded-xl"
+                  style={{ background: "var(--surface-raised)", padding: "12px 16px" }}
+                >
+                  <PanelTimeline
+                    title=""
+                    idPrefix={`review-${placed.run.id}`}
+                    milestones={journey.map((n) => ({
+                      id: n.runId,
+                      label: `${n.centreName} · ${n.laneCode}`,
+                      status:
+                        n.runId === placed.run.id
+                          ? ("active" as const)
+                          : n.centreIdx <
+                              (journey.find((x) => x.runId === placed.run.id)?.centreIdx ?? 0)
+                            ? ("completed" as const)
+                            : ("pending" as const),
+                      date: `${clockAt(n.start)} – ${clockAt(n.start + n.hours)}`,
+                      events: [],
+                    }))}
+                  />
+                </div>
+              </div>
             )}
 
             {tab === "commitment" && (
