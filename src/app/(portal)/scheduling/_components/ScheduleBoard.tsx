@@ -4,7 +4,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { createPortal } from "react-dom";
 import {
   Button,
-  DetailPanelShell,
   Input,
   PanelTimeline,
   Progress,
@@ -24,7 +23,7 @@ import {
   WORK_CENTRES,
   YARN_FOR_DYE,
 } from "@/data/schedule-data";
-import { FAMILY_LABEL, type BacklogItem, type BeltId, type Run } from "@/types/schedule";
+import { type BacklogItem, type BeltId, type Run } from "@/types/schedule";
 import DrillLink from "@/components/ui/DrillLink";
 import YarnCone from "@/components/ui/YarnCone";
 import RunDeckModal from "./RunDeckModal";
@@ -174,9 +173,6 @@ const DAY_DATE = ["12 Aug", "13 Aug", "14 Aug"];
  *  clock and every bar lands under the wrong label. Both resolve their
  *  percentages against the same inset box, so 06:00 and the run that starts
  *  at 06:00 move together and stay in register. */
-/** Matches DetailPanelShell's own slide, so the unmount lands with it. */
-const PANEL_SLIDE_MS = 300;
-
 const TRACK_INSET = 16;
 
 /** Maintenance reads in slate blue, not the amber a changeover uses: a belt
