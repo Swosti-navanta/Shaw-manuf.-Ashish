@@ -248,7 +248,7 @@ export default function LaborAnalysis({
 
       {/* Context pair — structural or a blip · outlier or not. */}
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-        <Section title="Is it worsening?" scope="OT$/SY · 12 periods">
+        <Section title="Trend assessment" scope="OT$/SY · 12 periods">
           <TrendSpark series={proc.trend.series} band={proc.trend.band} tone={proc.trend.tone} />
           <p className="type-caption" style={{ marginTop: 8, color: "var(--ds-text-secondary)", lineHeight: 1.45 }}>
             <strong
@@ -267,7 +267,7 @@ export default function LaborAnalysis({
           </p>
         </Section>
 
-        <Section title="Is this the outlier?" scope="OT$/SY · by process, this plant">
+        <Section title="Peer comparison" scope="OT$/SY · by process, this plant">
           <div className="flex flex-col" style={{ gap: 7 }}>
             {LABOR_BENCHMARK.map((b) => {
               const you = b.id === procId;
@@ -394,20 +394,70 @@ function Section({
 
 /** 12-period OT$/SY line with the alert band as a dashed rule. */
 function TrendSpark({ series, band, tone }: { series: ReadonlyArray<number>; band: number; tone: "bad" | "warn" | "good" }) {
-  const W = 320;
-  const H = 84;
-  const max = Math.max(...series, band) * 1.08;
-  const min = Math.min(...series, band) * 0.92;
+  // A framed mini-chart: real X (period) and Y (OT$/SY) axes with ticks, rather
+  // than a bare sparkline. Uniform scaling (no preserveAspectRatio="none") keeps
+  // the axis labels crisp instead of horizontally stretched.
+  const W = 480;
+  const H = 150;
+  const ML = 46; // left margin — Y tick labels
+  const MR = 14;
+  const MT = 12;
+  const MB = 26; // bottom margin — X tick labels
+  const plotW = W - ML - MR;
+  const plotH = H - MT - MB;
+
+  const lo = Math.min(...series, band);
+  const hi = Math.max(...series, band);
+  const max = hi + (hi - lo) * 0.12;
+  const min = lo - (hi - lo) * 0.12;
   const span = max - min || 1;
-  const x = (i: number) => (i / (series.length - 1)) * (W - 8) + 4;
-  const y = (v: number) => H - 8 - ((v - min) / span) * (H - 16);
+  const x = (i: number) => ML + (i / (series.length - 1)) * plotW;
+  const y = (v: number) => MT + plotH - ((v - min) / span) * plotH;
+
   const stroke = tone === "bad" ? "var(--text-danger)" : tone === "warn" ? "var(--text-warning, #F79009)" : "var(--text-success)";
+  const axis = "var(--border-strong)";
+  const grid = "var(--border-light)";
+  const tickInk = "var(--ds-text-secondary)";
+  const fmt = (v: number) => `$${v.toFixed(3)}`;
+
+  const yTicks = [lo, band, hi];
+  // Label roughly five evenly-spaced periods so the axis reads without crowding.
+  const step = Math.max(1, Math.round((series.length - 1) / 4));
+  const xTicks = series.map((_, i) => i).filter((i) => i % step === 0 || i === series.length - 1);
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Overtime per square yard, 12 periods" style={{ width: "100%", height: H }}>
-      <line x1={4} x2={W - 4} y1={y(band)} y2={y(band)} stroke="var(--text-warning, #F79009)" strokeWidth={1} strokeDasharray="4 4" opacity={0.6} />
-      <text x={W - 6} y={y(band) - 4} textAnchor="end" fontSize={9} fill="var(--ds-text-placeholder, #9F9FA9)">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Overtime per square yard, 12 periods" style={{ width: "100%", height: "auto" }}>
+      {/* Y grid + tick values */}
+      {yTicks.map((v) => (
+        <g key={`y${v}`}>
+          <line x1={ML} x2={W - MR} y1={y(v)} y2={y(v)} stroke={grid} strokeWidth={1} />
+          <text x={ML - 6} y={y(v) + 3} textAnchor="end" fontSize={9} fill={tickInk} style={{ fontVariantNumeric: "tabular-nums" }}>
+            {fmt(v)}
+          </text>
+        </g>
+      ))}
+
+      {/* Axes */}
+      <line x1={ML} x2={ML} y1={MT} y2={MT + plotH} stroke={axis} strokeWidth={1} />
+      <line x1={ML} x2={W - MR} y1={MT + plotH} y2={MT + plotH} stroke={axis} strokeWidth={1} />
+
+      {/* X ticks + period labels */}
+      {xTicks.map((i) => (
+        <g key={`x${i}`}>
+          <line x1={x(i)} x2={x(i)} y1={MT + plotH} y2={MT + plotH + 4} stroke={axis} strokeWidth={1} />
+          <text x={x(i)} y={H - 8} textAnchor="middle" fontSize={9} fill={tickInk} style={{ fontVariantNumeric: "tabular-nums" }}>
+            P{i + 1}
+          </text>
+        </g>
+      ))}
+
+      {/* Threshold band */}
+      <line x1={ML} x2={W - MR} y1={y(band)} y2={y(band)} stroke="var(--text-warning, #F79009)" strokeWidth={1} strokeDasharray="4 4" opacity={0.7} />
+      <text x={W - MR} y={y(band) - 4} textAnchor="end" fontSize={9} fill="var(--text-warning, #B7791F)">
         band ${band}
       </text>
+
+      {/* The trend */}
       <polyline
         fill="none"
         stroke={stroke}
@@ -416,6 +466,9 @@ function TrendSpark({ series, band, tone }: { series: ReadonlyArray<number>; ban
         strokeLinejoin="round"
         points={series.map((v, i) => `${x(i)},${y(v)}`).join(" ")}
       />
+      {series.map((v, i) => (
+        <circle key={i} cx={x(i)} cy={y(v)} r={1.6} fill={stroke} />
+      ))}
     </svg>
   );
 }

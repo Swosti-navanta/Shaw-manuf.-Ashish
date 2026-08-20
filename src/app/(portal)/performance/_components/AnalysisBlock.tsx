@@ -231,8 +231,8 @@ export default function AnalysisBlock<L extends string>({
             }}
           >
             {[
-              { k: "Is it worsening?", r: context.worsening },
-              { k: "Is this the outlier?", r: context.outlier },
+              { k: "Trend assessment", r: context.worsening },
+              { k: "Peer comparison", r: context.outlier },
             ].map((c) => (
               <div
                 key={c.k}
