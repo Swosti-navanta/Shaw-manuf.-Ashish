@@ -196,7 +196,7 @@ export const PAGE_AGENTS: Record<string, PageAgent> = {
   },
 
   "/make": {
-    agent: "Rowan",
+    agent: "Sage",
     role: "The shift",
     intro: "I read the run against the released plan. Ask me what slipped and what it costs.",
     prompts: [

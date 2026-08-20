@@ -38,10 +38,11 @@ import {
   RUN,
   RUN_KPIS,
 } from "@/data/run-data";
-import type { MakeAction } from "@/types/action";
+import { HORIZON_LABEL, SOURCE_LABEL, type MakeAction } from "@/types/action";
 import DrillLink from "@/components/ui/DrillLink";
 import ActivityFeed from "./ActivityFeed";
 import DecisionBand from "./DecisionBand";
+import DecisionOptions from "./DecisionOptions";
 import RateChart from "./RateChart";
 
 /** What travels to the maintenance system. Shown as a tab rather than a
@@ -628,16 +629,57 @@ function Measurements() {
  * activity feed is the argument for how it was handled. On the page they were
  * free-floating panels nobody had a reason to read.
  */
+/** A small metadata chip for the deck header — origin, horizon, exposure. */
+function HeaderChip({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "iris" | "amber" | "red";
+}) {
+  const map = {
+    neutral: { bg: "var(--surface-sunken, #F1F3F5)", fg: "var(--ds-text-secondary)" },
+    iris: { bg: "var(--color-iris-50)", fg: "var(--color-iris-700)" },
+    amber: { bg: "var(--surface-warning, #FEF6E7)", fg: "var(--text-warning, #B7791F)" },
+    red: { bg: "var(--surface-danger)", fg: "var(--text-danger)" },
+  }[tone];
+  return (
+    <span
+      className="type-caption inline-flex items-center"
+      style={{
+        padding: "2px 9px",
+        borderRadius: 999,
+        background: map.bg,
+        color: map.fg,
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 export default function ActionDeckModal({
   action,
+  resolvedLabel,
+  onResolve,
   onClose,
 }: {
   action: MakeAction;
+  /** The chosen option's label, if this options-decision has been made. */
+  resolvedLabel?: string | null;
+  /** Commit an options-decision (a label) or undo it (null). */
+  onResolve?: (label: string | null) => void;
   onClose: () => void;
 }) {
   const { status } = useRun();
   const tabs = TABS_BY_KIND[action.kind] ?? TABS_BY_KIND.drift;
   const [tab, setTab] = useState<DeckTab>(tabs[0].id);
+  // A Performance-raised decision carries its own costed options. When it does,
+  // the deck *is* that choice — the kind-specific evidence tabs below are the
+  // DL-4471 / Backing 2 story and don't belong to it, so they're suppressed.
+  const hasOptions = Boolean(action.options?.length);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -687,6 +729,15 @@ export default function ActionDeckModal({
                 {action.agent} · {action.at}
               </span>
             </span>
+            {/* Where the decision came from, the clock it runs on, and what it
+                exposes — the pipeline framing, so the deck names its origin. */}
+            <span className="flex items-center flex-wrap" style={{ gap: 6 }}>
+              <HeaderChip>Raised from {SOURCE_LABEL[action.source]}</HeaderChip>
+              <HeaderChip tone={action.horizon === "shift" ? "red" : action.horizon === "period" ? "amber" : "iris"}>
+                {HORIZON_LABEL[action.horizon]}
+              </HeaderChip>
+              <HeaderChip tone={action.impactBad ? "red" : "neutral"}>Exposure {action.impact}</HeaderChip>
+            </span>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <X size={16} weight="bold" />
@@ -715,23 +766,42 @@ export default function ActionDeckModal({
                   className="type-body"
                   style={{ color: "var(--ds-text-secondary)", lineHeight: 1.55 }}
                 >
-                  {action.detail}
+                  {action.read ?? action.detail}
                 </p>
 
               {/* The run's numbers belong to the agent's read, not to a tab —
                   they're what Rowan looked at to reach it. Mirrors the IRIS
-                  summary-metrics row: white tiles on the lavender card. */}
-                {METRICS_BY_KIND[action.kind] && (
+                  summary-metrics row: white tiles on the lavender card. They're
+                  the DL-4471 / Backing 2 figures, so an options-decision (which
+                  isn't about those) skips them. */}
+                {!hasOptions && METRICS_BY_KIND[action.kind] && (
                   <SummaryMetrics metrics={METRICS_BY_KIND[action.kind]} />
                 )}
               </div>
 
-              {/* The decision itself lives at the foot of the agent's card —
-                  the recommendation is the headline, the alternatives are
-                  buttons beside it. */}
-              {action.kind === "resequence" ? <DecisionBand /> : <KindBand action={action} />}
+              {/* The decision itself lives at the foot of the agent's card. A
+                  Performance-raised action makes its choice from its own costed
+                  options; the re-sequence keeps its bespoke schedule-aware band;
+                  everything else is a single committing action. */}
+              {hasOptions ? (
+                <DecisionOptions
+                  action={action}
+                  resolvedLabel={resolvedLabel}
+                  onResolve={onResolve ?? (() => {})}
+                  onClose={onClose}
+                />
+              ) : action.kind === "resequence" ? (
+                <DecisionBand />
+              ) : (
+                <KindBand action={action} />
+              )}
             </section>
 
+            {/* The kind-specific evidence — rate chart, cost breakdown,
+                payload — is the DL-4471 / Backing 2 story. An options-decision
+                brings its own read and choice, so it shows no evidence tabs. */}
+            {!hasOptions && (
+            <>
             <Tabs
               variant="underline"
               tabs={tabs}
@@ -990,6 +1060,8 @@ export default function ActionDeckModal({
                 </div>
                 <ActivityFeed />
               </div>
+            )}
+            </>
             )}
           </div>
         </div>

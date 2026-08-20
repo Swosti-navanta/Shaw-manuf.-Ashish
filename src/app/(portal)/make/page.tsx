@@ -16,7 +16,15 @@ import { usePersona } from "@/context/PersonaContext";
 import { useRun } from "@/context/RunContext";
 import { useScope } from "@/context/ScopeContext";
 import { plantLabel } from "@/types/division";
-import { CATEGORY_OF, LANE_TAB, MAKE_ACTIONS, SOURCE_LABEL, type MakeAction } from "@/types/action";
+import {
+  CATEGORY_OF,
+  HORIZON_LABEL,
+  HORIZON_ORDER,
+  LANE_TAB,
+  MAKE_ACTIONS,
+  SOURCE_LABEL,
+  type MakeAction,
+} from "@/types/action";
 import ActionDeckModal from "./_components/ActionDeckModal";
 
 type TabId = "person" | "auto";
@@ -57,14 +65,19 @@ function MakeQueue() {
     const id = searchParams.get("action");
     return id ? (MAKE_ACTIONS.find((x) => x.id === id) ?? null) : null;
   });
+  // An options-decision is settled when a person accepts one of its options —
+  // the label they chose, kept here so the row can move to Resolved and show
+  // what was decided. The re-sequence and work-order settle through RunContext.
+  const [resolved, setResolved] = useState<Record<string, string>>({});
 
-  // The re-sequence row leaves the queue once a person has chosen an option,
-  // so the list empties as the shift is worked rather than staying static.
+  // A row leaves the queue once it's been acted on, so the list empties as the
+  // shift is worked rather than staying static.
   const isSettled = useCallback(
     (a: MakeAction) =>
       (a.kind === "resequence" && status !== "open") ||
-      (a.kind === "workorder" && workOrderRaised),
-    [status, workOrderRaised],
+      (a.kind === "workorder" && workOrderRaised) ||
+      Boolean(resolved[a.id]),
+    [status, workOrderRaised, resolved],
   );
 
   const rows = useMemo(
@@ -72,7 +85,12 @@ function MakeQueue() {
       MAKE_ACTIONS.filter((a) => {
         const settled = isSettled(a);
         return tab === "person" ? a.lane !== "auto" && !settled : a.lane === "auto" || settled;
-      }),
+      })
+        // Horizon is the axis that decides what gets read first — shortest
+        // clock on top, so a 22-minute rate deviation can't sit below a
+        // quarterly capital case just because the case moves more money.
+        .slice()
+        .sort((a, b) => HORIZON_ORDER.indexOf(a.horizon) - HORIZON_ORDER.indexOf(b.horizon)),
     [tab, isSettled],
   );
 
@@ -130,6 +148,37 @@ function MakeQueue() {
             {CATEGORY_OF[row.kind]}
           </span>
         ),
+      },
+      {
+        key: "horizon",
+        label: "Horizon",
+        width: 116,
+        // The clock the decision runs on. It's the queue's real axis — the
+        // urgent and the important aren't the same kind of "now", and the
+        // colour says which is which at a glance.
+        cell: (row) => {
+          const tone =
+            row.horizon === "shift"
+              ? { bg: "var(--surface-danger)", fg: "var(--text-danger)" }
+              : row.horizon === "period"
+                ? { bg: "var(--surface-warning, #FEF6E7)", fg: "var(--text-warning, #B7791F)" }
+                : { bg: "var(--color-iris-50)", fg: "var(--color-iris-700)" };
+          return (
+            <span
+              className="type-caption inline-flex items-center"
+              style={{
+                padding: "2px 9px",
+                borderRadius: 999,
+                background: tone.bg,
+                color: tone.fg,
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {HORIZON_LABEL[row.horizon]}
+            </span>
+          );
+        },
       },
       {
         key: "traces",
@@ -246,8 +295,19 @@ function MakeQueue() {
               // the AI mark where it was the agent.
               cell: (row: MakeAction) =>
                 isSettled(row) ? (
-                  <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
-                    {profile.name}
+                  <span className="flex flex-col" style={{ gap: 1 }}>
+                    <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
+                      {profile.name}
+                    </span>
+                    {resolved[row.id] && (
+                      <span
+                        className="type-caption"
+                        style={{ color: "var(--text-success)", maxWidth: 160 }}
+                        title={resolved[row.id]}
+                      >
+                        {resolved[row.id]}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="inline-flex items-center" style={{ gap: 6 }}>
@@ -276,7 +336,7 @@ function MakeQueue() {
         ),
       },
     ],
-    [openAction, tab, isSettled, profile.name],
+    [openAction, tab, isSettled, profile.name, resolved],
   );
 
   const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
@@ -333,7 +393,23 @@ function MakeQueue() {
         />
       </TableShell>
 
-      {deck && <ActionDeckModal action={deck} onClose={() => setDeck(null)} />}
+      {deck && (
+        <ActionDeckModal
+          action={deck}
+          resolvedLabel={resolved[deck.id] ?? null}
+          onResolve={(label) =>
+            setResolved((r) => {
+              if (label === null) {
+                const next = { ...r };
+                delete next[deck.id];
+                return next;
+              }
+              return { ...r, [deck.id]: label };
+            })
+          }
+          onClose={() => setDeck(null)}
+        />
+      )}
     </div>
   );
 }

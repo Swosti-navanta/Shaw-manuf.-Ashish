@@ -132,7 +132,7 @@ export function ProfileMenu({ open, anchor, onClose }: ProfileMenuProps) {
                 {prof.name} {active ? "· current" : ""}
               </span>
               <span className="type-caption truncate" style={{ color: "var(--ds-text-secondary)" }}>
-                {prof.role} · {prof.scope}
+                {prof.role}
               </span>
             </span>
           </button>

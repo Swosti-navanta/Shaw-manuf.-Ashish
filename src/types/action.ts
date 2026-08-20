@@ -60,6 +60,26 @@ export const HORIZON_LABEL: Record<Horizon, string> = {
 /** Shortest clock first — the order the queue reads in. */
 export const HORIZON_ORDER: ReadonlyArray<Horizon> = ["shift", "period", "quarter"];
 
+/**
+ * A costed option on a decision — the unit of the choice a person actually
+ * makes. The engine pre-picks one (`recommended`); the rest are the arguments
+ * against it. `risky` marks the option that looks cheapest on paper and isn't
+ * — the trap the read is there to warn about — so the surface can argue against
+ * it before it's taken rather than after.
+ */
+export interface DecisionOption {
+  /** The move, phrased as the thing you'd do. */
+  label: string;
+  /** Its headline cost, as shown — "+$4.8k", "$0", "$48k capex", "~$134k/yr". */
+  cost: string;
+  /** What choosing it commits you to — the one line that separates it. */
+  consequence: string;
+  /** Rowan's pre-pick. Exactly one option per decision carries it. */
+  recommended?: boolean;
+  /** The cheap-on-paper trap — flagged so it can't be taken by reflex. */
+  risky?: boolean;
+}
+
 export interface MakeAction {
   id: string;
   kind: ActionKind;
@@ -108,6 +128,20 @@ export interface MakeAction {
   /** Only the re-sequence carries three costed options. Every action opens a
    *  deck regardless — the deck's contents vary by kind, not its existence. */
   hasOptions?: boolean;
+  /**
+   * The agent's framing of the judgement — not what happened (`detail`) and not
+   * what to do (`insight`), but *how to think about the choice*: which axis the
+   * decision really turns on, and which option to argue against. Shown at the
+   * top of the deck. Falls back to `detail` when absent.
+   */
+  read?: string;
+  /**
+   * The costed options for a Performance-raised decision. When present, the
+   * deck renders them as the choice — pick one, then Accept — instead of the
+   * kind-specific single-action band. The re-sequence keeps its own bespoke
+   * band (it reaches into the schedule), so it leaves this empty.
+   */
+  options?: ReadonlyArray<DecisionOption>;
 }
 
 /**
@@ -187,6 +221,30 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     impact: "Promise ceiling",
     impactBad: true,
     at: "06:50",
+    read:
+      "The belt is promising against capacity it doesn't have — 8% forward headroom, second week running. The decision is whether to protect the dates you've already given or the sales you'd give next. Capping is free but costs quotes; the real fix is throughput, and that's a quarter-long play.",
+    options: [
+      {
+        label: "Cap new promises until headroom clears 12%",
+        cost: "$0 now",
+        consequence:
+          "Protects every date already committed. Sales can't quote this belt for about three weeks.",
+        recommended: true,
+      },
+      {
+        label: "Keep promising, expedite when it bites",
+        cost: "~$18k/period",
+        consequence:
+          "Holds the sales line, paid for in recovery overtime — and one slip on a shade-critical order becomes a claim.",
+        risky: true,
+      },
+      {
+        label: "Re-rate the belt to achieved capacity",
+        cost: "$0",
+        consequence:
+          "Honest planning. Concedes 8% of this belt's promise capacity until throughput is fixed.",
+      },
+    ],
   },
   {
     id: "act-labor",
@@ -205,6 +263,29 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     impact: "$0.056/SY ▲",
     impactBad: true,
     at: "06:20",
+    read:
+      "This reads as a labor overrun and isn't one. 85% of it is a symptom — machine downtime on Warp-02 and warp starts bunched late by sequencing. Only about 15% is genuine above-plan volume, and that's the only part a headcount would fix. The judgement is whether to treat the cause or buy the recovery.",
+    options: [
+      {
+        label: "Rebalance warp release, route the causes",
+        cost: "$0",
+        consequence:
+          "Sends the downtime to Maintenance and the sequencing to Sawyer — where ~85% of the overrun actually lives.",
+        recommended: true,
+      },
+      {
+        label: "Approve 2 warping operators",
+        cost: "~$134k/yr",
+        consequence:
+          "Removes the ~15% genuine-volume overtime. The other ~85% survives the hire, because it isn't a staffing problem.",
+        risky: true,
+      },
+      {
+        label: "Accept the overtime this period",
+        cost: "$47k",
+        consequence: "Defensible for one close. Not four periods running — the band's been broken 4 of 6.",
+      },
+    ],
   },
   {
     id: "act-report",

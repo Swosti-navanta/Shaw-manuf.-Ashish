@@ -100,7 +100,7 @@ export default function PerformancePage() {
           radius="md"
           options={[
             { value: "exec", label: "Overall" },
-            { value: "mfg", label: "Manufacturing" },
+            { value: "mfg", label: "Product family" },
             { value: "machine", label: "Machine health" },
             { value: "labor", label: "Labor" },
           ]}

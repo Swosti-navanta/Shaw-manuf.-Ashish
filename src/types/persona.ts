@@ -1,25 +1,19 @@
-// Persona system for Shaw MFG — one profile that owns every agent surface.
+// Persona system for Shaw MFG — role-scoped access to the agent surfaces.
 //
-// This started as three personas mirroring an escalation ladder (plant →
-// division → network). It collapsed to one because the ladder was costing
-// more than it explained: every cross-agent story in the product — Rowan's
-// decision rebuilding Sawyer's sequence, Wren's finding writing a scheduling
-// rule, Sable's lot sizing sitting behind Rowan's options — had to be told
-// across a profile switch. A person who has to change identity to follow the
-// consequence of their own decision can't see that the agents are connected,
-// which is the entire claim.
+// Three seats, each with a different slice of the plant:
+//   • VP of Manufacturing — the executive read: the dashboard, Performance
+//     (POVA, budgets) and the network Thresholds dial. No floor decisions.
+//   • Scheduler — the plan: the belt schedule, yarn/dye lots, and the Make
+//     queue where the shift's decisions land.
+//   • Plant Manager — sees everything, the full app.
 //
-// The scaffolding is kept rather than deleted: `Persona` is still a union and
-// the allowlist still exists, so re-splitting is a data change here and not a
-// rewrite of the proxy, the nav and every page.
-//
-// Division and plant remain the live dimensions (see src/types/division.ts).
-// They filter data; they have never gated routes.
+// Division and plant remain the live data dimensions (see
+// src/types/division.ts). They filter data; persona gates routes.
 //
 // Persisted in a cookie so the proxy (src/proxy.ts) can route-guard against
 // the same source of truth the client uses.
 
-export type Persona = "ops" | "plant";
+export type Persona = "vp" | "scheduler" | "plant";
 
 export interface PersonaProfile {
   /** Display name shown in the profile menu. */
@@ -28,37 +22,40 @@ export interface PersonaProfile {
   role: string;
   /** Two-letter initials for the avatar. */
   initials: string;
-  /** One-line scope caption — what this persona is accountable for. */
-  scope: string;
   /** Agents whose queue lands on this persona's desk. */
   agents: ReadonlyArray<string>;
 }
 
 export const PERSONAS: Record<Persona, PersonaProfile> = {
-  ops: {
-    name: "Marcus",
-    role: "Director of Manufacturing",
+  // The executive seat. The financial and network read — never the floor.
+  vp: {
+    name: "Marcus Bell",
+    role: "VP of Manufacturing",
     initials: "MB",
-    scope: "All divisions · every agent",
-    agents: ["Rowan", "Wren", "Sawyer", "Sable"],
+    agents: ["Sage"],
   },
-  // The floor seat. Owns the shift's decisions but not the financial read —
-  // Performance (POVA, budgets) and the network Thresholds dial are senior
-  // views, so this persona never sees them.
+  // The plan seat. Owns the sequence, the lots that feed it, and the shift's
+  // decisions — but not the financial read or the network dials.
+  scheduler: {
+    name: "Sam Ortiz",
+    role: "Scheduler",
+    initials: "SO",
+    agents: ["Sawyer", "Sable", "Rowan"],
+  },
+  // The floor's most senior seat — every surface, every agent.
   plant: {
-    name: "Dana",
-    role: "Plant Manager · Plant 12",
+    name: "Dana Whitfield",
+    role: "Plant Manager",
     initials: "DW",
-    scope: "Plant 12 · shift decisions, no financials",
-    agents: ["Rowan", "Wren", "Sable"],
+    agents: ["Rowan", "Wren", "Sawyer", "Sable"],
   },
 };
 
-export const PERSONA_ORDER: ReadonlyArray<Persona> = ["ops", "plant"];
+export const PERSONA_ORDER: ReadonlyArray<Persona> = ["vp", "scheduler", "plant"];
 
-/** The only persona there is. Everything that used to branch on identity
- *  resolves to this. */
-export const DEFAULT_PERSONA: Persona = "ops";
+/** Where the demo opens: the Plant Manager, who can reach every surface so
+ *  nothing reads as missing on first load. */
+export const DEFAULT_PERSONA: Persona = "plant";
 
 /** Sections every signed-in persona can reach. */
 export const SHARED_PREFIXES: ReadonlyArray<string> = ["/settings"];
@@ -66,15 +63,16 @@ export const SHARED_PREFIXES: ReadonlyArray<string> = ["/settings"];
 /**
  * Path-prefix allowlist per persona, on top of SHARED_PREFIXES. The proxy
  * checks each protected path against the active persona's list (plus the
- * shared list) and redirects home if no prefix matches.
- *
- * One persona, so today this is every surface. The mechanism stays because
- * the cost of keeping it is a single array and the cost of removing it is
- * re-deriving route guarding from scratch the first time a real deployment
- * needs two roles.
+ * shared list) and redirects home if no prefix matches. The sidebar reads the
+ * same list to decide which nav items to show.
  */
 export const PERSONA_PAGES: Record<Persona, ReadonlyArray<string>> = {
-  ops: [
+  // Executive: dashboard, Performance, Thresholds.
+  vp: ["/overview", "/performance", "/thresholds"],
+  // The plan: schedule (and the constraint model under it), yarn, Make.
+  scheduler: ["/scheduling", "/yarn", "/make"],
+  // Everything.
+  plant: [
     "/overview",
     "/make",
     "/quality",
@@ -84,27 +82,24 @@ export const PERSONA_PAGES: Record<Persona, ReadonlyArray<string>> = {
     "/sage",
     "/thresholds",
   ],
-  // No /performance and no /thresholds — financials and network dials are
-  // senior views. Everything operational stays.
-  plant: ["/overview", "/make", "/quality", "/scheduling", "/yarn", "/sage"],
 };
 
-/** Where you land after sign-in. The inbox, because the product's opening
- *  claim is that it tells you what to act on rather than handing you a
- *  dashboard to read. */
+/** Where each persona lands after sign-in — the surface they live in. */
 export const PERSONA_HOME: Record<Persona, string> = {
-  ops: "/overview",
+  vp: "/overview",
+  scheduler: "/scheduling",
   plant: "/overview",
 };
 
-/** One owner, so both of these are simply true. They stay as functions
- *  because they are the seams a future role split would reopen. */
-export function canEditThresholds(): boolean {
-  return true;
+/** Thresholds is a senior/network view — only the VP and the Plant Manager
+ *  reach it, so only they can move the dial. */
+export function canEditThresholds(persona: Persona): boolean {
+  return persona === "vp" || persona === "plant";
 }
 
-export function canReleaseSchedule(): boolean {
-  return true;
+/** Releasing the sequence is the Scheduler's and Plant Manager's call. */
+export function canReleaseSchedule(persona: Persona): boolean {
+  return persona === "scheduler" || persona === "plant";
 }
 
 export function isPathAllowedForPersona(
@@ -118,5 +113,5 @@ export function isPathAllowedForPersona(
 }
 
 export function isPersona(value: string | undefined): value is Persona {
-  return value === "ops" || value === "plant";
+  return value === "vp" || value === "scheduler" || value === "plant";
 }
