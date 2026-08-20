@@ -191,8 +191,8 @@ const PLANT_BASE: ReadonlyArray<{ plant: string; v: number }> = [
 const isPeriod = (p: string): p is Period => p === "P12" || p === "P13" || p === "P14";
 
 const fmtK = (n: number) => `$${Math.round(n)}k`;
-/** "$47k U" / "$3k F" — magnitude plus the favourable/unfavourable flag. */
-const fmtVar = (v: number) => `$${Math.round(Math.abs(v))}k ${v >= 0 ? "U" : "F"}`;
+/** "$47k" — magnitude only; tone/colour carries favourable vs unfavourable. */
+const fmtVar = (v: number) => `$${Math.round(Math.abs(v))}k`;
 /** Signed percentage against a baseline, using the typographic minus. */
 const fmtPct = (v: number, base: number) => {
   const p = base === 0 ? 0 : (v / base) * 100;
@@ -429,7 +429,7 @@ export const OT_BY_PROCESS: ReadonlyArray<Bar> = [
 
 /** The line that closes Labor back up to POVA. */
 export const LABOR_POVA_LINE =
-  "This period's overtime: $171k actual vs $124k budget · $47k U → POVA Overtime row.";
+  "This period's overtime: $171k actual vs $124k budget · $47k → POVA Overtime row.";
 
 export interface CostCenterRow {
   cc: string;
@@ -593,7 +593,7 @@ export function povaLens(lens: PovaLens, period: string, build: PovaBuild): Read
     label: c.label,
     sub: c.sub || undefined,
     pct: Math.max(6, Math.round((Math.abs(c.v) / top) * 100)),
-    value: `$${Math.abs(Math.round(c.v))}k ${c.v < 0 ? "F" : "U"}`,
+    value: `$${Math.abs(Math.round(c.v))}k`,
     tone: c.v < 0 ? "ok" : Math.abs(c.v) / top > 0.7 ? "hot" : "warn",
   }));
 }

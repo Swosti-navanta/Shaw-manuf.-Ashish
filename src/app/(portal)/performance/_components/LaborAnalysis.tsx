@@ -130,7 +130,7 @@ export default function LaborAnalysis({
       </div>
 
       {/* The causal chain — the join a spreadsheet can't make. */}
-      <Section title="The causal chain · how the money actually moved" scope="machine → labor → cost">
+      <Section title="Labor variance · root-cause chain" scope="machine → labor → cost">
         <div className="flex items-stretch" style={{ gap: 8, overflowX: "auto" }}>
           {proc.chain.map((node, i) => (
             <div key={node.src} className="flex items-center" style={{ gap: 8, flex: "1 1 0", minWidth: 132 }}>
@@ -195,7 +195,7 @@ export default function LaborAnalysis({
 
       {/* Decomposition — the same money, four slices, one panel. */}
       <Section
-        title={`Break the ${proc.verdict.tone === "good" ? "cost" : proc.verdict.amount.split(" ")[0]} down`}
+        title="Labor cost breakdown"
         action={
           <SegmentedControl
             size="sm"

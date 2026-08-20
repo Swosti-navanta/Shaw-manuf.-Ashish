@@ -152,7 +152,7 @@ export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string)
 
   return (
     <TableShell
-      title="What crossed a limit"
+      title="Threshold exceptions"
       totalItems={ATTENTION_OVERALL.length}
       currentPage={1}
       onPageChange={() => {}}

@@ -287,7 +287,7 @@ export default function BeltPlan() {
     <>
       <TableShell
       customize={false}
-        title="The belt plan"
+        title="The Schedule"
         icon={CalendarBlank}
         tabs={[
           { id: "board", label: "Board" },

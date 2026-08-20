@@ -248,6 +248,7 @@ export const OPTIONS: Record<string, RecoveryOption> = {
       { label: "Changeover · dark→light purge", value: "+$1,840", hint: "Two slots swap" },
       { label: "Overtime", value: "$0", hint: "No overtime required" },
       { label: "Shade / claim risk", value: "None", hint: "No additional risk" },
+      { label: "Protects", value: "$14.2k at risk", hint: "Exposure if the fixed date slips" },
       { label: "Net impact", value: "+$1,840", hint: "Total incremental cost", net: true },
     ],
     schedule: [

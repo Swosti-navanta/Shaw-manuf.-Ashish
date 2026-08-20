@@ -7,10 +7,10 @@
 //
 // The agent named in the header is the one that owns the queue on that page:
 // Sawyer schedules, Rowan runs the shift, Sable sizes lots, Wren judges
-// quality. The roll-ups get their own: Sage reads across all four for an
-// executive, and Iris owns calibration — how the plants compare, and where each
-// dial is set. Performance and Thresholds are two views of Iris's question, so
-// they share her rather than being handed to a generic assistant.
+// quality. The cross-cutting surfaces get Sage: she reads across all four for
+// an executive on the roll-ups, and owns calibration — how the plants compare,
+// and where each dial is set — on Performance and Thresholds. Those are
+// cross-agent questions, so Sage answers them rather than a generic assistant.
 
 export interface ChatPrompt {
   /** The chip's label — phrased as the question a person would actually ask. */
@@ -86,12 +86,12 @@ const SAGE: PageAgent = {
 };
 
 /**
- * Iris owns the calibration: how the plants compare, and where each one's
+ * Sage also owns the calibration: how the plants compare, and where each one's
  * limits are set too tight or too loose. Performance and Thresholds are two
  * views of that same question — one is the result, the other is the dial.
  */
-const IRIS: PageAgent = {
-  agent: "Iris",
+const SAGE_LIMITS: PageAgent = {
+  agent: "Sage",
   role: "Calibration & limits",
   intro: "I watch how the plants compare and where each dial is set. Ask me what to change.",
   prompts: [
@@ -353,8 +353,8 @@ export const PAGE_AGENTS: Record<string, PageAgent> = {
 
   "/overview": SAGE,
   "/sage": SAGE,
-  "/performance": IRIS,
-  "/thresholds": IRIS,
+  "/performance": SAGE_LIMITS,
+  "/thresholds": SAGE_LIMITS,
   "/settings": SAGE,
 };
 

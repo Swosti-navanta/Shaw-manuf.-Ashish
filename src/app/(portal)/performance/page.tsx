@@ -156,11 +156,11 @@ export default function PerformancePage() {
            number stated three ways is three things to keep in step. */
         <div className="flex flex-col" style={{ gap: 16 }}>
           <AnalysisBlock<PovaLens>
-            chainTitle="The causal chain · how the money actually moved"
+            chainTitle="Cost variance · root-cause chain"
             chainScope="plan → labor → cost"
             chain={povaChain(period, pova)}
             read={povaChainRead(period, pova)}
-            breakdownTitle={`Break the ${pova.summary.totalVariance.replace(/ [UF]$/, "")} down`}
+            breakdownTitle="Operating variance breakdown"
             lenses={POVA_LENSES}
             rows={(l) => povaLens(l, period, pova)}
             context={povaContext(pova)}
@@ -177,11 +177,11 @@ export default function PerformancePage() {
            downtime bars, the defect heatmap — each answered one slice of "where
            is it concentrated", which the lens switch now answers in one place. */
         <AnalysisBlock<MfgLens>
-          chainTitle="The causal chain · why the belt can't hit rate"
+          chainTitle="Rate loss · root-cause chain"
           chainScope="machine → rate → cost"
           chain={MFG_CHAIN}
           read={MFG_CHAIN_READ}
-          breakdownTitle="Break the OEE loss down"
+          breakdownTitle="OEE loss breakdown"
           lenses={MFG_LENSES}
           rows={mfgLens}
           context={MFG_CONTEXT}
@@ -194,11 +194,11 @@ export default function PerformancePage() {
            an argument first and a chart second. */
         <div className="flex flex-col" style={{ gap: 16 }}>
           <AnalysisBlock<MachineLens>
-            chainTitle="The causal chain · the cascade caught early"
+            chainTitle="Deviation · root-cause chain"
             chainScope="signal → quality → cost"
             chain={MACHINE_CHAIN}
             read={MACHINE_CHAIN_READ}
-            breakdownTitle="Break the shift's exposure down"
+            breakdownTitle="Shift exposure breakdown"
             lenses={MACHINE_LENSES}
             rows={machineLens}
             context={MACHINE_CONTEXT}

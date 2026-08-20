@@ -422,16 +422,16 @@ export const MACHINES: ReadonlyArray<MachineRow> = [
     },
   },
   {
-    id: "Backing 2 coater",
+    id: "DL-4471",
     stageId: "coat",
-    role: "coating head · constraint line",
+    role: "Backing 2 coater · coating head · constraint line",
     status: "under",
     spec: "Line speed",
     reading: "17.4 fpm",
     band: "≥ 20.0",
     readingTone: "hot",
     timeAboveSpec: "22 min",
-    affects: "DL-4471 · $14.2k/hr",
+    affects: "DL-4471 · $14.2k at risk",
     affectsTone: "hot",
     pens: [
       {
@@ -454,7 +454,7 @@ export const MACHINES: ReadonlyArray<MachineRow> = [
       { metric: "IR PID feedback", unit: "", tone: "hot", points: line([148, 150, 154, 158, 166, 172, 150]) },
     ],
     primary: {
-      label: "Review · $14.2k costed",
+      label: "Review · +$1,840",
       owner: "sequence",
       state: "ask",
       spawnsQueueRow: true,
@@ -466,7 +466,7 @@ export const MACHINES: ReadonlyArray<MachineRow> = [
       EXPLAIN,
     ],
     brief: {
-      bleed: "$14.2k/hr · $5.2k this shift",
+      bleed: "$14.2k at risk · $5.2k this shift",
       bleedTone: "hot",
       forecast:
         "If the rate holds, the run finishes +4 h late — DL-4471 misses its slot and both orders' dates are at risk.",
@@ -870,7 +870,7 @@ export const MACHINE_HEALTH_KPIS: ReadonlyArray<MachineKpi> = [
     key: "shade",
     label: "Shade-critical at risk",
     value: "DL-4471",
-    detail: "$14.2k/hr · fixed install date",
+    detail: "$14.2k at risk · fixed install date",
     tone: "bad",
     info: "DL-4471 is shade-critical and committed to a fixed install on Sawyer's board. Backing 2 running under rate threatens that date — the levers are eat the cost, re-sequence to protect it, or raise the price / renegotiate the date. Opens the decision.",
     actionId: "act-reseq",

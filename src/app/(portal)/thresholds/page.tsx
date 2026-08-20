@@ -64,7 +64,7 @@ export default function ThresholdsPage() {
     <div className="flex flex-col" style={{ gap: 16 }}>
       <PageHeading
         title="The dial you set — per plant"
-        subtitle={`Thresholds · Iris · ${plantLabel(plant)}. Same engine everywhere; each plant sets its own limits. ${auto} of ${THRESHOLD_ROWS.length} decisions run on their own, ${asking} always reach a person.`}
+        subtitle={`Thresholds · Sage · ${plantLabel(plant)}. Same engine everywhere; each plant sets its own limits. ${auto} of ${THRESHOLD_ROWS.length} decisions run on their own, ${asking} always reach a person.`}
       />
 
       {/* What each position means, stated once rather than implied by a word. */}
