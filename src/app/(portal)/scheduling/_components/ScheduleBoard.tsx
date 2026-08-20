@@ -172,6 +172,9 @@ const DAY_DATE = ["12 Aug", "13 Aug", "14 Aug"];
  *  clock and every bar lands under the wrong label. Both resolve their
  *  percentages against the same inset box, so 06:00 and the run that starts
  *  at 06:00 move together and stay in register. */
+/** Matches DetailPanelShell's own slide, so the unmount lands with it. */
+const PANEL_SLIDE_MS = 300;
+
 const TRACK_INSET = 16;
 
 /** Maintenance reads in slate blue, not the amber a changeover uses: a belt
@@ -1879,17 +1882,35 @@ function RunPopover({
   onReview: () => void;
   onClose: () => void;
 }) {
+  /* The shell animates off `open`, so it has to be mounted shut for one frame
+     and opened on the next — mounting it already-open puts the transform at
+     its final value with nothing to transition from, which is why it appeared
+     instantly. */
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  /* And closing runs the same slide in reverse before the card unmounts —
+     otherwise the panel snaps out of existence at the end of an animation
+     that was careful about arriving. */
+  const dismiss = useCallback(() => {
+    setShown(false);
+    window.setTimeout(onClose, PANEL_SLIDE_MS);
+  }, [onClose]);
+
   /* Escape only. The card used to close on scroll and resize because it was
      pinned under the bar and would drift away from what it described; a panel
      is docked to the edge, so scrolling the board to look at the belts it
      names is now the expected thing to do rather than a reason to dismiss it. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") dismiss();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [dismiss]);
 
   const laneIndex = lanes.findIndex((l) => l.layout.placed.some((p) => p.run.id === runId));
   if (laneIndex < 0) return null;
@@ -1938,8 +1959,8 @@ function RunPopover({
 
   return (
     <DetailPanelShell
-      open
-      onClose={onClose}
+      open={shown}
+      onClose={dismiss}
       title={run.label}
       subtitle={`${lane.code} · ${lane.centreName} · ${clockAt(start)}–${clockAt(start + hours)}`}
       width={420}
