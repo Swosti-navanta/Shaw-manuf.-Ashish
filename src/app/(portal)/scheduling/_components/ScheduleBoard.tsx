@@ -151,8 +151,9 @@ const WINDOWS = [
 ];
 // Tall enough for the constraint belt's gutter, which carries the most: name,
 // the "12% slow" flag, the load bar and its figure. Sizing the row to the
-// busiest belt keeps all three the same height without cramping that one.
-const TRACK_H = 76;
+// busiest belt keeps all three the same height without cramping that one —
+// and now also for a bar carrying three lines rather than two.
+const TRACK_H = 88;
 /** The division bar that heads each work centre — the plant's own grouping,
  *  drawn full width above its machines/lines. */
 const HEADER_H = 30;
@@ -183,8 +184,9 @@ const MAINT_BD = "rgba(37,99,235,.42)";
 const MAINT_INK = "#1D4ED8";
 
 /** Run bar height inside the lane. Shorter than the lane so a bar reads as an
- *  object sitting in a row rather than as the row itself. */
-const BAR_H = 48;
+ *  object sitting in a row rather than as the row itself — with room for the
+ *  name, the window it runs in, and its lot. */
+const BAR_H = 60;
 
 /**
  * Three belts against one clock, drawn as a resource Gantt: position is time.
