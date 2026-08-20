@@ -13,15 +13,9 @@ import {
 import {
   COMMITMENT_KPIS,
   DOWNTIME_CAUSES,
-  LABOR_KPIS,
-  LABOR_POVA_LINE,
   MARGIN_TREND,
   MFG_KPIS,
   OEE_TREND,
-  OT_BY_COST_CENTER,
-  OT_BY_EMPLOYEE,
-  OT_BY_PROCESS,
-  OT_TREND,
   POVA_COMPARISONS,
   POVA_CURRENT_PERIOD,
   POVA_DETAIL,
@@ -33,11 +27,10 @@ import {
   type PovaComparison,
   type PovaRow,
 } from "@/data/performance-analytics";
-import { explainOtDriftTask } from "@/data/performance-flows";
+import LaborAnalysis from "./_components/LaborAnalysis";
 import LineHealth from "./_components/LineHealth";
 
 type View = "exec" | "mfg" | "machine" | "labor";
-type LaborTab = "proc" | "cc" | "emp";
 
 const HEAT_RAMP = ["var(--surface-sunken)", "#FEF0C7", "#FEDF89", "#FEC84B", "#F79009", "#D92D20"];
 const CELL_STOP = [0, 1, 4, 5];
@@ -53,7 +46,6 @@ export default function PerformancePage() {
   const { startTask } = useChatPanel();
   const agent = "Roll-up";
   const [view, setView] = useState<View>("exec");
-  const [ltab, setLtab] = useState<LaborTab>("proc");
   // POVA's clock — one period, one comparison, governing every view.
   const [period, setPeriod] = useState(POVA_CURRENT_PERIOD);
   const [comparison, setComparison] = useState<PovaComparison>("budget");
@@ -317,118 +309,12 @@ export default function PerformancePage() {
         </div>
       )}
 
+      {/* Labor — the analysis workbench. Pure analysis, process-scoped; the
+          only forward path is the pointer to Make, where decisions live. */}
       {view === "labor" && (
-        <div className="flex flex-col" style={{ gap: 16 }}>
-          <span
-            className="type-caption"
-            style={{
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "var(--ds-text-placeholder, var(--text-muted))",
-            }}
-          >
-            Labor &amp; overtime · Plant 13 · Dalton N — the same columns Chris tracks in Excel
-          </span>
-          <KpiRow kpis={LABOR_KPIS} />
-          <SegmentedControl
-            size="sm"
-            value={ltab}
-            onValueChange={(v) => setLtab(v as LaborTab)}
-            aria-label="Labor breakdown"
-            options={[
-              { value: "proc", label: "By process" },
-              { value: "cc", label: "By cost center" },
-              { value: "emp", label: "Employee detail" },
-            ]}
-          />
-
-          {ltab === "proc" && (
-            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-              <Panel title="OT¢/SY by process · 12wk" scope="3wk MA · from P13 tracker · cents per SY">
-                <Trend
-                  series={OT_TREND.map((pt) => ({ label: pt.label, value: Math.round(pt.value * 1000) / 10 }))}
-                  unit="¢/SY"
-                  color="var(--text-danger)"
-                />
-              </Panel>
-              <Panel title="Latest week · by process" scope="vs 3wk moving average">
-                <BarList bars={OT_BY_PROCESS} onExplain={(b) => startTask(explainOtDriftTask(b, agent))} />
-              </Panel>
-            </div>
-          )}
-
-          {ltab === "cc" && (
-            <Panel title="By cost center" scope="this week vs 3wk MA">
-              <SimpleTable
-                head={["Cost center", "Process", "OT$ this wk", "3wk MA", "Δ vs MA", "Pounds"]}
-                rows={OT_BY_COST_CENTER.map((r) => ({
-                  key: r.cc + r.process,
-                  flag: r.flag,
-                  cells: [
-                    r.cc,
-                    r.process,
-                    r.ot,
-                    r.ma,
-                    { text: r.delta, tone: r.deltaTone },
-                    { text: r.pounds, right: true },
-                  ],
-                }))}
-              />
-            </Panel>
-          )}
-
-          {ltab === "emp" && (
-            <Panel title="Employee detail" scope="overtime this week">
-              <SimpleTable
-                head={["Employee", "Process", "Reg hrs", "OT hrs", "OT rate", "OT$ wk"]}
-                rows={OT_BY_EMPLOYEE.map((r) => ({
-                  key: r.id,
-                  cells: [r.id, r.process, r.reg, r.ot, r.rate, { text: r.otWk, right: true }],
-                }))}
-              />
-            </Panel>
-          )}
-
-          {/* The reconciliation line — closes the loop back up to POVA. */}
-          <div
-            className="flex items-center justify-between flex-wrap"
-            style={{
-              gap: 12,
-              padding: "10px 14px",
-              borderRadius: 12,
-              background: "var(--surface-base)",
-              border: "1px solid var(--border-default)",
-              boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-            }}
-          >
-            <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
-              {LABOR_POVA_LINE}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setView("exec");
-                const row = pova.rows.find((r) => r.category === "Overtime");
-                if (row) setPovaDrawer(row);
-              }}
-            >
-              Open the POVA row
-            </Button>
-          </div>
-
-          <div
-            className="flex items-start"
-            style={{ gap: 9, padding: "12px 14px", borderRadius: 12, background: "var(--color-iris-50)", border: "1px solid var(--color-iris-200)" }}
-          >
-            <AiStar size={15} style={{ marginTop: 1, flexShrink: 0 }} />
-            <span className="type-body" style={{ color: "var(--ds-text-secondary)", lineHeight: 1.55 }}>
-              <strong style={{ color: "var(--ds-text-primary)" }}>Same columns as Chris&apos;s Excel</strong>{" "}
-              — Total OT$/Tuft SY, 3wk MA, per process — but the engine now watches the bands. Warping
-              has broken its band 4 of the last 6 weeks; that reads as a scheduling story, not a labor one.
-            </span>
-          </div>
-        </div>
+        <LaborAnalysis
+          onOpenMake={(id) => router.push(id ? `/make?action=${id}` : "/make")}
+        />
       )}
 
       {povaDrawer && (

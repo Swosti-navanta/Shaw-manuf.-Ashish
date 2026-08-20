@@ -126,6 +126,18 @@ export interface ScheduleRule {
 }
 
 export const BASE_RULES: ReadonlyArray<ScheduleRule> = [
+  {
+    id: "capacity",
+    text: "No line is loaded beyond its available hours in the window",
+    detail: "Checked per line against the board window, maintenance and changeover included",
+    strength: "hard",
+  },
+  {
+    id: "lot-allocated",
+    text: "A run releases only against a lot allocated to a specific order — on hand or confirmed to arrive before start — with enough to cover the run",
+    detail: "Allocation, arrival date and quantity are all checked before release",
+    strength: "hard",
+  },
   { id: "shade-whole", text: "Keep a dye lot whole when an order is shade-critical", strength: "soft" },
   { id: "locked", text: "Nothing moves inside the frozen window — now + 3.5h", strength: "hard" },
   { id: "campaign", text: "Campaign light → dark to cut changeover", strength: "soft" },

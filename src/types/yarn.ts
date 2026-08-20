@@ -230,8 +230,8 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     swatch: { type: "dye", colour: "#3F3F47", image: "/yarn/cone-dye-cascade.png" },
     shade: "ΔE 0.8",
     title: "Yarn lot came in off-shade; formula recalculated to hit standard",
-    yarnLot: "Y-30918",
-    qty: "1,840 lb",
+    yarnLot: "Y-31004",
+    qty: "1,200 lb",
     covers: "2 orders",
     value: 4200,
     escalation:
@@ -244,8 +244,8 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     confidence: 97,
     lab: "ΔE 0.8 · pass",
     genealogy: {
-      yarn: { id: "Y-30918", note: "Supplier draw B · 2,400 lb received" },
-      dyeLot: { id: "DL-4471", note: "Cascade · 1,840 lb committed" },
+      yarn: { id: "Y-31004", note: "Supplier draw A · 3,000 lb received" },
+      dyeLot: { id: "DL-4471", note: "Cascade · 1,200 lb committed" },
       batch: { id: "B-88214", note: "3 rolls · 449 lin yd off the line" },
     },
     formula: [
@@ -260,7 +260,7 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
       { label: "Lab dip", result: "passed on 2nd submit", pass: true },
       { label: "Crock fastness", result: "4–5 · unchanged", pass: true },
       { label: "Cost per lb", result: "+$0.02 · within tolerance", pass: true },
-      { label: "Substrate match", result: "Y-30918 is a different draw", pass: false },
+      { label: "Substrate match", result: "Y-31004 · shared draw A", pass: true },
     ],
     at: "06:42",
   },
@@ -273,7 +273,7 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     shade: "ΔE 1.3",
     title: "Dune shade drifts warm — teal balance nudged to pull it back",
     yarnLot: "Y-31004",
-    qty: "2,150 lb",
+    qty: "1,050 lb",
     covers: "1 order",
     value: 1400,
     escalation:
@@ -287,7 +287,7 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     lab: "ΔE 0.9 · pass",
     genealogy: {
       yarn: { id: "Y-31004", note: "Supplier draw A · 3,000 lb received" },
-      dyeLot: { id: "DL-4482", note: "Dune · 2,150 lb proposed" },
+      dyeLot: { id: "DL-4482", note: "Dune · 1,050 lb proposed" },
     },
     formula: [
       { dyestuff: "Blue 2R", standard: "0.204%", proposed: "0.221%", delta: "+0.017" },
@@ -309,23 +309,23 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     subject: { id: "DL-4488", label: "DL-4488 · Meridian", kind: "dyelot" },
     swatch: { type: "dye", colour: "#A16207", image: "/yarn/cone-dye-meridian.png" },
     shade: "ΔE 0.6",
-    title: "Meridian recipe unchanged — routine re-approval on a new draw",
-    yarnLot: "Y-30918",
-    qty: "1,120 lb",
+    title: "Meridian recipe unchanged — routine re-approval on the shared draw",
+    yarnLot: "Y-31004",
+    qty: "750 lb",
     covers: "1 order",
     value: 600,
     escalation:
-      "Nothing changed in the recipe, but the draw did — Sable will not carry a shade sign-off across a fibre change without a person confirming the dip.",
+      "Nothing changed in the recipe. It is the third colour off the same Y-31004 draw, so Sable wants the dip confirmed before the whole lot is committed three ways.",
     insight: {
       headline: "Approve — recipe unchanged on the new draw",
-      detail: "re-confirmed across the fibre change",
+      detail: "third colour off Y-31004 · dip re-confirmed",
     },
     verdict: "Approve",
     confidence: 98,
     lab: "ΔE 0.6 · pass",
     genealogy: {
-      yarn: { id: "Y-30918", note: "Supplier draw B · 2,400 lb received" },
-      dyeLot: { id: "DL-4488", note: "Meridian · 1,120 lb proposed" },
+      yarn: { id: "Y-31004", note: "Supplier draw A · 3,000 lb received" },
+      dyeLot: { id: "DL-4488", note: "Meridian · 750 lb proposed" },
     },
     formula: [
       { dyestuff: "Yellow 4G", standard: "0.362%", proposed: "0.362%" },
@@ -335,7 +335,7 @@ export const APPROVALS: ReadonlyArray<ApprovalRow> = [
     checks: [
       { label: "Predicted ΔE", result: "0.6 · tol ≤ 1.0", pass: true },
       { label: "Recipe vs standard", result: "identical", pass: true },
-      { label: "Draw changed", result: "B, was A", pass: false },
+      { label: "Shared draw", result: "Y-31004 · draw A", pass: true },
     ],
     at: "07:18",
   },

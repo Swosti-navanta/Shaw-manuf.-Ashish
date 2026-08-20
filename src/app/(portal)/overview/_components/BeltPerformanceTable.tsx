@@ -66,7 +66,7 @@ export default function BeltPerformanceTable() {
       // and it leaves nothing for a genuinely bad number to stand out against.
       {
         key: "name",
-        label: "Belt",
+        label: "Machine",
         alwaysVisible: true,
         width: 132,
         sortable: true,
@@ -164,7 +164,7 @@ export default function BeltPerformanceTable() {
   return (
     <TableShell
       customize={false}
-      title="Belt performance"
+      title="Machine performance"
       icon={ChartBar}
       totalItems={rows.length}
       currentPage={1}

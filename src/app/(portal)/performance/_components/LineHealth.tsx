@@ -2,15 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { AiStar, Button, Chip, SegmentedControl } from "@navanta-ai/design-system";
-import { DotsThree, CaretRight, X, ArrowSquareOut, ArrowRight } from "@phosphor-icons/react";
+import { DotsThree, CaretRight, X, ArrowSquareOut, ArrowRight, Info } from "@phosphor-icons/react";
 import { usePersona } from "@/context/PersonaContext";
 import { useChatPanel } from "@/context/ChatPanelContext";
 import { machineActionTask } from "@/data/line-flows";
 import {
+  MACHINE_HEALTH_KPIS,
   MACHINES,
   machinesFor,
   OWNER_META,
   PROCESS_STAGES,
+  type MachineKpi,
   type MachineAction,
   type MachineRow,
   type ProcessStage,
@@ -85,6 +87,18 @@ export default function LineHealth({
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
+      {/* The machine-layer scorecard — is the machine layer costing money, and
+          where. The shade-critical tile is a decision, not a gauge: it opens
+          the re-sequence deck that guards the fixed date. */}
+      <div
+        className="grid"
+        style={{ gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(212px, 1fr))" }}
+      >
+        {MACHINE_HEALTH_KPIS.map((k) => (
+          <MachineKpiTile key={k.key} kpi={k} onOpenAction={onOpenAction} />
+        ))}
+      </div>
+
       {/* Process flow — the map. Click a stage to inspect its machines. */}
       <Panel title="Process flow · live · Line A" scope="click a stage to inspect its machines">
         <div
@@ -1203,4 +1217,83 @@ function TrailRow({ label, value, last }: { label: string; value: string; last?:
       </span>
     </div>
   );
+}
+
+/* ── Machine-health KPI tile ─────────────────────────────────────────────── */
+
+function MachineKpiTile({
+  kpi,
+  onOpenAction,
+}: {
+  kpi: MachineKpi;
+  onOpenAction?: (actionId: string) => void;
+}) {
+  const ink =
+    kpi.tone === "bad"
+      ? "var(--text-danger)"
+      : kpi.tone === "warn"
+        ? "var(--text-warning, #B7791F)"
+        : kpi.tone === "good"
+          ? "var(--text-success)"
+          : "var(--ds-text-primary)";
+  const actionable = Boolean(kpi.actionId && onOpenAction);
+
+  const inner = (
+    <>
+      <span className="flex items-center" style={{ gap: 6 }}>
+        <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+          {kpi.label}
+        </span>
+        <span title={kpi.info} className="inline-flex" style={{ cursor: "help", color: "var(--ds-text-placeholder, var(--text-muted))" }}>
+          <Info size={13} />
+        </span>
+      </span>
+      <span
+        style={{
+          fontSize: 22,
+          fontWeight: 600,
+          letterSpacing: "-0.01em",
+          lineHeight: 1.15,
+          color: ink,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {kpi.value}
+      </span>
+      <span className="flex items-center justify-between" style={{ gap: 8 }}>
+        <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+          {kpi.detail}
+        </span>
+        {actionable && (
+          <span
+            className="type-caption inline-flex items-center"
+            style={{ gap: 3, color: "var(--color-iris-700)", whiteSpace: "nowrap" }}
+          >
+            Decide <ArrowRight size={12} weight="bold" />
+          </span>
+        )}
+      </span>
+    </>
+  );
+
+  const frame: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: "13px 14px",
+    borderRadius: 12,
+    textAlign: "left",
+    background: actionable ? "var(--surface-danger)" : "var(--surface-base)",
+    border: `1px solid ${actionable ? "var(--border-danger, #FDA29B)" : "var(--border-default)"}`,
+    boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
+  };
+
+  if (actionable) {
+    return (
+      <button type="button" onClick={() => onOpenAction!(kpi.actionId!)} style={{ ...frame, cursor: "pointer" }}>
+        {inner}
+      </button>
+    );
+  }
+  return <div style={frame}>{inner}</div>;
 }

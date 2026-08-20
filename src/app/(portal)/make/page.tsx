@@ -117,29 +117,6 @@ export default function MakePage() {
         ),
       },
       {
-        key: "source",
-        label: "Analysis",
-        width: 128,
-        // Which of the four analyses raised this decision — the queue is
-        // their combined output, so every row names its origin.
-        cell: (row) => (
-          <span
-            className="type-caption inline-flex items-center"
-            style={{
-              padding: "2px 9px",
-              borderRadius: 999,
-              background: "var(--color-iris-50)",
-              border: "1px solid var(--color-iris-200)",
-              color: "var(--color-iris-700)",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {SOURCE_LABEL[row.source]}
-          </span>
-        ),
-      },
-      {
         key: "traces",
         label: "Traces to",
         width: 150,
@@ -164,20 +141,25 @@ export default function MakePage() {
           ),
       },
       {
-        key: "raised",
-        label: "Raised by",
-        width: 108,
+        key: "source",
+        label: "Cause",
+        width: 128,
+        // Which of the four analyses raised this decision — the queue is
+        // their combined output, so every row names its origin.
         cell: (row) => (
-          <span className="flex flex-col" style={{ gap: 1 }}>
-            <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
-              {row.agent}
-            </span>
-            <span
-              className="type-caption"
-              style={{ color: "var(--ds-text-secondary)", fontVariantNumeric: "tabular-nums" }}
-            >
-              {row.at}
-            </span>
+          <span
+            className="type-caption inline-flex items-center"
+            style={{
+              padding: "2px 9px",
+              borderRadius: 999,
+              background: "var(--color-iris-50)",
+              border: "1px solid var(--color-iris-200)",
+              color: "var(--color-iris-700)",
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {SOURCE_LABEL[row.source]}
           </span>
         ),
       },
@@ -194,6 +176,24 @@ export default function MakePage() {
             }}
           >
             {row.impact}
+          </span>
+        ),
+      },
+      {
+        key: "raised",
+        label: "Raised by",
+        width: 108,
+        cell: (row) => (
+          <span className="flex flex-col" style={{ gap: 1 }}>
+            <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
+              {row.agent}
+            </span>
+            <span
+              className="type-caption"
+              style={{ color: "var(--ds-text-secondary)", fontVariantNumeric: "tabular-nums" }}
+            >
+              {row.at}
+            </span>
           </span>
         ),
       },

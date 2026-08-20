@@ -23,11 +23,11 @@ export default function OverviewPage() {
   const beltPicker = (
     <span className="inline-flex" style={{ minWidth: 150 }}>
       <Select value={belt} onValueChange={setBelt} size="sm">
-        <Select.Trigger aria-label="Belt">
+        <Select.Trigger aria-label="Machine">
           <Select.Value />
         </Select.Trigger>
         <Select.Content>
-          <Select.Item value={ALL_BELTS}>All belts</Select.Item>
+          <Select.Item value={ALL_BELTS}>All machines</Select.Item>
           {LINES.map((l) => (
             <Select.Item key={l.name} value={l.name}>
               {l.name}
@@ -56,7 +56,7 @@ export default function OverviewPage() {
       >
         <MachineHealthCard />
 
-        <SurfaceCard title="Belt yield · planned vs actual" caption={beltPicker}>
+        <SurfaceCard title="Machine yield · planned vs actual" caption={beltPicker}>
           <BeltRateChart belt={belt} />
         </SurfaceCard>
       </div>

@@ -820,3 +820,59 @@ function line(values: number[]): ReadonlyArray<{ t: string; v: number }> {
     return { t: `${hh}:${mm.toString().padStart(2, "0")}`, v };
   });
 }
+
+/* ── Machine-health KPIs ────────────────────────────────────────────────────
+ *
+ * The standing scorecard above the flow strip — is the machine layer costing
+ * money, and where. Four headline reads: labour tied to machine stops, the
+ * rate-loss that inflates cost per SY, the cost of machine-caused downtime,
+ * and the shade-critical SKU whose fixed date the constraint belt threatens.
+ * The last one is a decision, not a gauge — it opens the re-sequence deck.
+ */
+export interface MachineKpi {
+  key: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "good" | "warn" | "bad";
+  /** Tooltip: what the figure counts, so it can be argued with. */
+  info: string;
+  /** When set, the tile promotes to this Make decision rather than just reading. */
+  actionId?: string;
+}
+
+export const MACHINE_HEALTH_KPIS: ReadonlyArray<MachineKpi> = [
+  {
+    key: "labour",
+    label: "Labour efficiency",
+    value: "84%",
+    detail: "16% of crew hours idle on machine stops",
+    tone: "warn",
+    info: "Crew hours on a running machine ÷ crew hours available. Labour is paid whether the machine runs or not, so every machine stop with a crew standing by is the loss this tracks — maintaining vs available.",
+  },
+  {
+    key: "costsy",
+    label: "Cost per SY",
+    value: "$1.94",
+    detail: "vs $1.79 budget · Backing 2 rate loss",
+    tone: "bad",
+    info: "A machine under rate spreads the same fixed cost over fewer square yards, so cost per SY climbs. Backing 2 at 17.4 vs 20 fpm is the driver — the machines can't hit rate on it.",
+  },
+  {
+    key: "downtime",
+    label: "Machine downtime cost",
+    value: "$28k",
+    detail: "31 h this window · Tuft-04 · Coat feeder",
+    tone: "bad",
+    info: "Cost of belt time lost to machine faults specifically — held separate from sequencing and changeover downtime so the machine-caused share is its own number.",
+  },
+  {
+    key: "shade",
+    label: "Shade-critical at risk",
+    value: "DL-4471",
+    detail: "$14.2k/hr · fixed install date",
+    tone: "bad",
+    info: "DL-4471 is shade-critical and committed to a fixed install on Sawyer's board. Backing 2 running under rate threatens that date — the levers are eat the cost, re-sequence to protect it, or raise the price / renegotiate the date. Opens the decision.",
+    actionId: "act-reseq",
+  },
+];
