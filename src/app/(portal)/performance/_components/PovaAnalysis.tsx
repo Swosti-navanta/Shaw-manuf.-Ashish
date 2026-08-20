@@ -10,6 +10,7 @@ import {
   povaLens,
   type PovaBuild,
   type PovaLens,
+  type PovaRow,
 } from "@/data/performance-analytics";
 
 /**
@@ -29,9 +30,13 @@ import {
 export default function PovaAnalysis({
   period,
   build,
+  onOpenCategory,
 }: {
   period: string;
   build: PovaBuild;
+  /** Opens a category's breakdown drawer. Only the category lens has rows
+   *  with a "why" behind them, so only those bars are clickable. */
+  onOpenCategory: (row: PovaRow) => void;
 }) {
   const [lens, setLens] = useState<PovaLens>("category");
 
@@ -137,7 +142,31 @@ export default function PovaAnalysis({
       >
         <div className="flex flex-col" style={{ gap: 10 }}>
           {rows.map((r) => (
-            <div key={r.label} className="flex items-center" style={{ gap: 12 }}>
+            <div
+              key={r.label}
+              className={r.row ? "flex items-center transition-colors" : "flex items-center"}
+              style={{
+                gap: 12,
+                cursor: r.row ? "pointer" : undefined,
+                borderRadius: 8,
+                margin: r.row ? "0 -8px" : undefined,
+                padding: r.row ? "2px 8px" : undefined,
+              }}
+              onClick={r.row ? () => onOpenCategory(r.row!) : undefined}
+              title={r.row ? "Open the category breakdown" : undefined}
+              role={r.row ? "button" : undefined}
+              tabIndex={r.row ? 0 : undefined}
+              onKeyDown={
+                r.row
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpenCategory(r.row!);
+                      }
+                    }
+                  : undefined
+              }
+            >
               <span className="flex flex-col shrink-0" style={{ width: 168 }}>
                 <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>
                   {r.label}

@@ -527,6 +527,9 @@ export interface LensRow {
   pct: number;
   value: string;
   tone: "hot" | "warn" | "ok";
+  /** Set on the category lens only: the row whose breakdown drawer this bar
+   *  opens. The other two lenses have no per-row "why" to open. */
+  row?: PovaRow;
 }
 
 /** What each category actually is, in the floor's words rather than the
@@ -562,6 +565,7 @@ export function povaLens(lens: PovaLens, period: string, build: PovaBuild): Read
     return rows.map(({ r, mag }) => ({
       label: r.category,
       sub: CATEGORY_SUB[r.category],
+      row: r,
       pct: Math.max(6, Math.round((mag / top) * 100)),
       value: r.variance,
       tone: !r.unfavorable ? "ok" : mag / top > 0.7 ? "hot" : "warn",

@@ -11,9 +11,7 @@ import {
   DEFECT_STATIONS,
 } from "@/types/quality";
 import {
-  COMMITMENT_KPIS,
   DOWNTIME_CAUSES,
-  MARGIN_TREND,
   MFG_KPIS,
   OEE_TREND,
   POVA_CURRENT_PERIOD,
@@ -54,12 +52,10 @@ export default function PerformancePage() {
   const [period, setPeriod] = useState(POVA_CURRENT_PERIOD);
   const comparison: PovaComparison = "budget";
   const [povaDrawer, setPovaDrawer] = useState<PovaRow | null>(null);
-  const periodMeta = POVA_PERIODS.find((pp) => pp.id === period) ?? POVA_PERIODS[1];
   // The period bar is a live dial: the summary tiles, the eight-row table and
   // variance-by-plant are all derived from (period, comparison), recomputed
   // whenever either toggle moves.
   const pova = useMemo(() => buildPova(period, comparison), [period, comparison]);
-  const comparisonLabel = "vs budget";
 
   // A Because card's CTA routes into the view that answers it.
   const followCta = (cta: string) => {
@@ -175,80 +171,18 @@ export default function PerformancePage() {
       )}
 
       {view === "exec" && (
+        /* The read, and nothing else. The summary tiles, the eight-row table
+           and the forward-exposure chart are gone: the chain already ends in
+           the total, the bars already say where it is concentrated, and a
+           category's actual-vs-budget detail is one click into its drawer. A
+           number stated three ways is three things to keep in step. */
         <div className="flex flex-col" style={{ gap: 16 }}>
-          {/* Commitment strip — the operational context that explains the
-              variance. Demoted above the spine, not the spine. */}
-          <KpiRow kpis={COMMITMENT_KPIS} />
+          <PovaAnalysis
+            period={period}
+            build={pova}
+            onOpenCategory={setPovaDrawer}
+          />
 
-          {/* POVA summary — the three numbers the period rolls up to. */}
-          <div className="grid" style={{ gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            {[
-              { k: "Total operating variance", v: pova.summary.totalVariance, sub: pova.summary.totalPct, bad: true },
-              { k: "Worst category", v: pova.summary.worstCategory.split(" · ")[0], sub: pova.summary.worstCategory.split(" · ")[1], bad: true },
-              { k: "Cost per SY", v: pova.summary.costPerSy.split(" / ")[0], sub: `budget ${pova.summary.costPerSy.split(" / ")[1]}` },
-            ].map((t) => (
-              <div
-                key={t.k}
-                className="flex flex-col"
-                style={{
-                  gap: 2,
-                  padding: "13px 14px",
-                  borderRadius: 12,
-                  background: "var(--surface-base)",
-                  border: "1px solid var(--border-default)",
-                  boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-                }}
-              >
-                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{t.k}</span>
-                <span
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 600,
-                    letterSpacing: "-0.01em",
-                    lineHeight: 1.15,
-                    color: t.bad ? "var(--text-danger)" : "var(--ds-text-primary)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {t.v}
-                </span>
-                <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{t.sub}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* THE POVA TABLE — the core artifact. Eight rows in SOP order,
-              unfavorable first; every row names its factor codes and the one
-              view that answers its "why". */}
-          <PovaAnalysis period={period} build={pova} />
-
-          <Panel
-            title={`Plant operating variance · actual ${comparisonLabel}`}
-            scope={`${periodMeta.label} · ${comparisonLabel} · click a row for the breakdown`}
-          >
-            <PovaTable
-              rows={pova.rows}
-              onOpen={(r) => setPovaDrawer(r)}
-              onDrill={(r) => {
-                if (r.drillsTo.view) setView(r.drillsTo.view);
-                else if (r.drillsTo.href) router.push(r.drillsTo.href);
-              }}
-            />
-          </Panel>
-
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            {/* The by-plant list used to sit here as its own panel. It is a
-                lens on the decomposition above now — the same figures in two
-                places is the thing that drifts. */}
-            {/* Forward exposure — a different clock from POVA's backward spend,
-                so it supports the table rather than sitting beside it as a peer. */}
-            <Panel title="Margin at risk · forward exposure" scope="supporting context · from TM1">
-              <Trend series={MARGIN_TREND} unit="k" color="var(--text-danger)" />
-            </Panel>
-          </div>
-
-          {/* Last, because it is the conclusion: everything above explains why a
-              number moved, and this names what crossed a limit while doing so. */}
           <AttentionBand onOpenMake={(id) => router.push(`/make?action=${id}`)} />
         </div>
       )}
