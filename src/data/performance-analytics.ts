@@ -597,3 +597,152 @@ export function povaLens(lens: PovaLens, period: string, build: PovaBuild): Read
     tone: c.v < 0 ? "ok" : Math.abs(c.v) / top > 0.7 ? "hot" : "warn",
   }));
 }
+
+/* ── Manufacturing's chain, decomposition and context ─────────────────────
+ *
+ * The same three shapes the Overall read uses, because it is the same three
+ * questions: how did we get here, where is it concentrated, is it structural.
+ * What changes is the unit — OEE points rather than dollars — and the claim.
+ *
+ * The claim: availability and quality are fine, so the belt runs and simply
+ * cannot hit rate. That single distinction is the decision, because a
+ * Performance loss is a capital or process question and never a maintenance
+ * one. The benchmark against a sister mill is what makes it a machine problem
+ * rather than a product one.
+ */
+
+export const MFG_CHAIN: ReadonlyArray<ChainNode> = [
+  { src: "Ignition", value: "68%", label: `OEE · Backing 2 · ${plantLabel("p04")}`, tone: "hot" },
+  { src: "Ignition", value: "P 76%", label: "the loss is Performance", tone: "hot" },
+  { src: "MES", value: "−12%", label: "under standard rate", tone: "warn" },
+  { src: "TM1", value: "$61k", label: "margin lost per period", tone: "hot" },
+];
+
+export const MFG_CHAIN_READ =
+  "availability is 91% and quality is 97% — the belt runs, it just can't hit rate. That one distinction is the decision: a Performance loss is a capital or process question, never a maintenance one.";
+
+export type MfgLens = "loss" | "belt" | "family";
+
+export const MFG_LENSES: ReadonlyArray<{ id: MfgLens; label: string }> = [
+  { id: "loss", label: "By loss type" },
+  { id: "belt", label: "By belt" },
+  { id: "family", label: "By product family" },
+];
+
+const MFG_ROWS: Record<MfgLens, ReadonlyArray<LensRow>> = {
+  loss: [
+    { label: "Performance", sub: "can't hit standard rate", pct: 100, value: "−17 pts", tone: "hot" },
+    { label: "Availability", sub: "stops + changeover", pct: 42, value: "−9 pts", tone: "warn" },
+    { label: "Quality", sub: "defects, rework", pct: 14, value: "−3 pts", tone: "ok" },
+  ],
+  belt: [
+    { label: `Backing 2 · ${plantLabel("p04")}`, sub: "the constraint", pct: 100, value: "68%", tone: "hot" },
+    { label: `Tufting · ${plantLabel("p04")}`, pct: 52, value: "81%", tone: "warn" },
+    { label: `Coating · ${plantLabel("p04")}`, pct: 38, value: "86%", tone: "warn" },
+    /* The sister mill running the identical asset class. This row is the whole
+       argument: it is what turns "the belt is slow" into "this belt is slow". */
+    { label: `Backing 2 · ${plantLabel("p07")}`, sub: "same asset class", pct: 30, value: "88%", tone: "ok" },
+  ],
+  family: [
+    { label: "Dune 240", sub: "heavy, dimensional", pct: 100, value: "62%", tone: "hot" },
+    { label: "Cascade Twist", pct: 64, value: "74%", tone: "warn" },
+    { label: "Highland Loop", sub: "light", pct: 36, value: "84%", tone: "ok" },
+  ],
+};
+
+export function mfgLens(lens: MfgLens): ReadonlyArray<LensRow> {
+  return MFG_ROWS[lens];
+}
+
+export interface ContextRead {
+  lead: string;
+  rest: string;
+}
+
+export const MFG_CONTEXT: { worsening: ContextRead; outlier: ContextRead } = {
+  worsening: {
+    lead: "Declining 14 periods — 72.2% to 68%.",
+    rest: "Past a bad quarter; this is an asset ageing out.",
+  },
+  outlier: {
+    lead: `The same asset class runs 88% at ${plantLabel("p07")}.`,
+    rest: "It's this machine, not the design.",
+  },
+};
+
+/** The Overall read's equivalent pair, derived so it moves with the period. */
+export function povaContext(build: PovaBuild): { worsening: ContextRead; outlier: ContextRead } {
+  const worst = build.byPlant[0];
+  return {
+    worsening: {
+      lead: `Unfavourable 4 periods running — $98k to ${build.summary.totalVariance.replace(/ [UF]$/, "")}.`,
+      rest: "Structural, not a bad close.",
+    },
+    outlier: {
+      lead: `${worst?.plant ?? "The lead plant"} is the outlier at ${worst?.value ?? "—"}.`,
+      rest: "Over half of it sits in a single category.",
+    },
+  };
+}
+
+/* ── Machine health's chain, decomposition and context ────────────────────
+ *
+ * The one view whose clock is now rather than a close. Its claim is the
+ * cheapest one the engine ever makes: the cascade was caught before the
+ * defect. A feeder starving for three days without crossing a hard limit is
+ * exactly the signal a threshold set on magnitude alone never fires on — slow
+ * enough to look like noise, long enough to matter.
+ */
+export const MACHINE_CHAIN: ReadonlyArray<ChainNode> = [
+  { src: "Ignition", value: "581", label: "Feeder-2 setpoint · was 610", tone: "warn" },
+  { src: "Ignition", value: "3d 4h", label: "above band, still drifting", tone: "hot" },
+  { src: "Quality", value: "94%", label: "cure margin thin — delam risk", tone: "warn" },
+  { src: "TM1", value: "$310/hr", label: "bleed while it continues", tone: "hot" },
+];
+
+export const MACHINE_CHAIN_READ =
+  "the feeder has starved three days; cure is holding with no margin left. The same signature preceded CLM-2154. This is the cascade caught before the defect — the only reason it's still cheap.";
+
+export type MachineLens = "asset" | "signal" | "stage";
+
+export const MACHINE_LENSES: ReadonlyArray<{ id: MachineLens; label: string }> = [
+  { id: "asset", label: "By asset" },
+  { id: "signal", label: "By signal" },
+  { id: "stage", label: "By stage" },
+];
+
+const MACHINE_ROWS: Record<MachineLens, ReadonlyArray<LensRow>> = {
+  asset: [
+    { label: "Backing 2 line", sub: "under plan rate", pct: 100, value: "$620/hr", tone: "hot" },
+    { label: "Tuft-04", sub: "bearing vibration", pct: 84, value: "$520/hr", tone: "hot" },
+    { label: "Feeder-2", sub: "setpoint drift", pct: 50, value: "$310/hr", tone: "warn" },
+    { label: "Kettle-3", sub: "in band", pct: 6, value: "in band", tone: "ok" },
+  ],
+  signal: [
+    { label: "Rate", sub: "fpm vs plan", pct: 100, value: "1 line · 22 min", tone: "hot" },
+    { label: "Vibration", sub: "mm/s vs 6.0", pct: 84, value: "1 asset · 34 min", tone: "hot" },
+    { label: "Setpoint drift", sub: "feeder starve", pct: 50, value: "1 asset · 3d 4h", tone: "warn" },
+    { label: "Temperature", sub: "all in band", pct: 5, value: "none", tone: "ok" },
+  ],
+  stage: [
+    { label: "Backing", sub: "the constraint", pct: 100, value: "$620/hr", tone: "hot" },
+    { label: "Tufting", pct: 84, value: "$520/hr", tone: "hot" },
+    { label: "Coating", pct: 50, value: "$310/hr", tone: "warn" },
+    { label: "Extrusion", sub: "in band", pct: 4, value: "in band", tone: "ok" },
+  ],
+};
+
+export function machineLens(lens: MachineLens): ReadonlyArray<LensRow> {
+  return MACHINE_ROWS[lens];
+}
+
+export const MACHINE_CONTEXT: { worsening: ContextRead; outlier: ContextRead } = {
+  worsening: {
+    lead: "Feeder-2 has drifted 3 days without crossing hard —",
+    rest: "slow enough to look like noise, long enough to matter.",
+  },
+  outlier: {
+    lead: "Backing 2 is the constraint,",
+    rest: "so its $620/hr is the number that sets the shift.",
+  },
+};

@@ -3,49 +3,51 @@
 import { useState } from "react";
 import { ArrowRight } from "@phosphor-icons/react";
 import { SegmentedControl } from "@navanta-ai/design-system";
-import {
-  POVA_LENSES,
-  povaChain,
-  povaChainRead,
-  povaLens,
-  type PovaBuild,
-  type PovaLens,
-  type PovaRow,
+import type {
+  ChainNode,
+  ContextRead,
+  LensRow,
+  PovaRow,
 } from "@/data/performance-analytics";
 
 /**
- * The Overall read's causal chain and decomposition.
+ * One analysis, in the order the questions get asked: how did we get here,
+ * where is it concentrated, and is it structural.
  *
- * Deliberately the same shapes the Labor analysis uses for the same two jobs —
- * source-tagged nodes ending in money, then one panel of bars with a lens
- * switch. Two visual languages for "here is the chain" and "here is the
- * breakdown" would make the four analyses read as four products.
- *
- * The bars sit above the eight-row table rather than replacing it, because the
- * two answer different questions: the bars say where the money is
- * concentrated, the table says what the actual and budget figures were. The
- * by-plant panel that used to sit lower down is gone — it is a lens here now,
- * and the same list in two places is the thing that drifts.
+ * Shared by every view that makes that argument, because it IS the same
+ * argument — only the unit changes, dollars on the Overall read and OEE points
+ * on Manufacturing. Four views each drawing their own chain and their own bars
+ * would read as four products rather than four questions about one plant.
  */
-export default function PovaAnalysis({
-  period,
-  build,
-  onOpenCategory,
+export default function AnalysisBlock<L extends string>({
+  chainTitle,
+  chainScope,
+  chain,
+  read,
+  breakdownTitle,
+  lenses,
+  rows,
+  context,
+  onOpenRow,
 }: {
-  period: string;
-  build: PovaBuild;
-  /** Opens a category's breakdown drawer. Only the category lens has rows
-   *  with a "why" behind them, so only those bars are clickable. */
-  onOpenCategory: (row: PovaRow) => void;
+  chainTitle: string;
+  chainScope: string;
+  chain: ReadonlyArray<ChainNode>;
+  read: string;
+  breakdownTitle: string;
+  lenses: ReadonlyArray<{ id: L; label: string }>;
+  /** Rows for the active lens. */
+  rows: (lens: L) => ReadonlyArray<LensRow>;
+  context?: { worsening: ContextRead; outlier: ContextRead };
+  /** Set where a row has a "why" behind it to open. */
+  onOpenRow?: (row: PovaRow) => void;
 }) {
-  const [lens, setLens] = useState<PovaLens>("category");
-
-  const chain = povaChain(period, build);
-  const rows = povaLens(lens, period, build);
+  const [lens, setLens] = useState<L>(lenses[0].id);
+  const activeRows = rows(lens);
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <Section title="The causal chain · how the money actually moved" scope="plan → labor → cost">
+      <Section title={chainTitle} scope={chainScope}>
         <div className="flex items-stretch" style={{ gap: 8, overflowX: "auto" }}>
           {chain.map((node, i) => (
             <div
@@ -123,45 +125,44 @@ export default function PovaAnalysis({
             lineHeight: 1.5,
           }}
         >
-          <strong style={{ color: "var(--ds-text-primary)" }}>Read it left to right:</strong>{" "}
-          {povaChainRead(period, build)}
+          <strong style={{ color: "var(--ds-text-primary)" }}>Read it left to right:</strong> {read}
         </p>
       </Section>
 
       <Section
-        title={`Break the ${build.summary.totalVariance.replace(/ [UF]$/, "")} down`}
+        title={breakdownTitle}
         action={
           <SegmentedControl
             size="sm"
             value={lens}
-            onValueChange={(v) => setLens(v as PovaLens)}
+            onValueChange={(v) => setLens(v as L)}
             aria-label="Decomposition lens"
-            options={POVA_LENSES.map((l) => ({ value: l.id, label: l.label }))}
+            options={lenses.map((l) => ({ value: l.id, label: l.label }))}
           />
         }
       >
         <div className="flex flex-col" style={{ gap: 10 }}>
-          {rows.map((r) => (
+          {activeRows.map((r) => (
             <div
               key={r.label}
-              className={r.row ? "flex items-center transition-colors" : "flex items-center"}
+              className="flex items-center transition-colors"
               style={{
                 gap: 12,
-                cursor: r.row ? "pointer" : undefined,
+                cursor: r.row && onOpenRow ? "pointer" : undefined,
                 borderRadius: 8,
-                margin: r.row ? "0 -8px" : undefined,
-                padding: r.row ? "2px 8px" : undefined,
+                margin: r.row && onOpenRow ? "0 -8px" : undefined,
+                padding: r.row && onOpenRow ? "2px 8px" : undefined,
               }}
-              onClick={r.row ? () => onOpenCategory(r.row!) : undefined}
-              title={r.row ? "Open the category breakdown" : undefined}
-              role={r.row ? "button" : undefined}
-              tabIndex={r.row ? 0 : undefined}
+              onClick={r.row && onOpenRow ? () => onOpenRow(r.row!) : undefined}
+              title={r.row && onOpenRow ? "Open the breakdown" : undefined}
+              role={r.row && onOpenRow ? "button" : undefined}
+              tabIndex={r.row && onOpenRow ? 0 : undefined}
               onKeyDown={
-                r.row
+                r.row && onOpenRow
                   ? (e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onOpenCategory(r.row!);
+                        onOpenRow(r.row!);
                       }
                     }
                   : undefined
@@ -216,6 +217,54 @@ export default function PovaAnalysis({
             </div>
           ))}
         </div>
+
+        {/* Structural or a blip · this one or all of them. The two questions
+            that decide whether the breakdown above is worth acting on, kept
+            inside the same panel because neither means anything alone. */}
+        {context && (
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: 10,
+              marginTop: 14,
+            }}
+          >
+            {[
+              { k: "Is it worsening?", r: context.worsening },
+              { k: "Is this the outlier?", r: context.outlier },
+            ].map((c) => (
+              <div
+                key={c.k}
+                className="flex flex-col"
+                style={{
+                  gap: 4,
+                  padding: "11px 13px",
+                  borderRadius: 10,
+                  background: "var(--surface-raised)",
+                }}
+              >
+                <span
+                  className="type-caption"
+                  style={{
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    color: "var(--ds-text-placeholder, var(--text-muted))",
+                  }}
+                >
+                  {c.k}
+                </span>
+                <span
+                  className="type-caption"
+                  style={{ color: "var(--ds-text-secondary)", lineHeight: 1.5 }}
+                >
+                  <strong style={{ color: "var(--ds-text-primary)" }}>{c.r.lead}</strong>{" "}
+                  {c.r.rest}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
     </div>
   );

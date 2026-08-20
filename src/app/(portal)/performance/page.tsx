@@ -11,13 +11,27 @@ import {
   DEFECT_STATIONS,
 } from "@/types/quality";
 import {
-  DOWNTIME_CAUSES,
-  MFG_KPIS,
-  OEE_TREND,
   POVA_CURRENT_PERIOD,
   POVA_DETAIL,
   POVA_PERIODS,
-  YIELD_TREND,
+  POVA_LENSES,
+  povaChain,
+  povaChainRead,
+  povaLens,
+  povaContext,
+  type PovaLens,
+  MFG_CHAIN,
+  MFG_CHAIN_READ,
+  MFG_LENSES,
+  mfgLens,
+  MFG_CONTEXT,
+  type MfgLens,
+  MACHINE_CHAIN,
+  MACHINE_CHAIN_READ,
+  MACHINE_LENSES,
+  machineLens,
+  MACHINE_CONTEXT,
+  type MachineLens,
   buildPova,
   type Bar,
   type Kpi,
@@ -26,7 +40,7 @@ import {
 } from "@/data/performance-analytics";
 import LaborAnalysis from "./_components/LaborAnalysis";
 import AttentionBand from "./_components/AttentionBand";
-import PovaAnalysis from "./_components/PovaAnalysis";
+import AnalysisBlock from "./_components/AnalysisBlock";
 import LineHealth from "./_components/LineHealth";
 
 type View = "exec" | "mfg" | "machine" | "labor";
@@ -98,77 +112,61 @@ export default function PerformancePage() {
         </Button>
       </header>
 
-      <SegmentedControl
-        value={view}
-        onValueChange={(v) => setView(v as View)}
-        aria-label="Performance view"
-        options={[
-          { value: "exec", label: "Overall" },
-          { value: "mfg", label: "Manufacturing" },
-          { value: "machine", label: "Machine health" },
-          { value: "labor", label: "Labor" },
-        ]}
-      />
+      {/* One control row: which analysis, then which four weeks. They were
+          stacked, which read as two unrelated toolbars — and the period only
+          ever qualifies the view sitting next to it. */}
+      <div className="flex items-center justify-between flex-wrap" style={{ gap: 12 }}>
+        <SegmentedControl
+          value={view}
+          onValueChange={(v) => setView(v as View)}
+          aria-label="Performance view"
+          options={[
+            { value: "exec", label: "Overall" },
+            { value: "mfg", label: "Manufacturing" },
+            { value: "machine", label: "Machine health" },
+            { value: "labor", label: "Labor" },
+          ]}
+        />
 
-      {/* The period bar is POVA's clock, and POVA is the Overall view. The
-          other views are the "why" behind it — Manufacturing and Labor carry
-          their own time framing (12-period, 3wk MA) and have no budget variance
-          to compare against, so the bar would only mislead there; Machine
-          health is live and keeps its own realtime/historical toggle. */}
-      {view === "exec" && (
-        <div
-          className="flex items-center justify-between flex-wrap"
-          style={{
-            gap: 12,
-            padding: "8px 12px",
-            borderRadius: 12,
-            background: "var(--surface-base)",
-            border: "1px solid var(--border-default)",
-            boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-          }}
-        >
-          <span className="flex items-center" style={{ gap: 10 }}>
-            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-              Four weeks to
-            </span>
-            {/* A dropdown rather than three segments: the labels are date ranges
-                now, and three of those side by side is a wall of dates. */}
-            <Select value={period} onValueChange={setPeriod}>
-              <Select.Trigger size="sm" aria-label="Period" className="w-[184px]">
-                <span
-                  className="min-w-0 items-center"
-                  style={{ display: "flex", gap: 7, whiteSpace: "nowrap" }}
-                >
-                  <CalendarBlank
-                    size={15}
-                    weight="duotone"
-                    className="shrink-0"
-                    style={{ color: "var(--text-secondary)" }}
-                  />
-                  <Select.Value />
-                </span>
-              </Select.Trigger>
-              <Select.Content>
-                {POVA_PERIODS.map((pp) => (
-                  <Select.Item key={pp.id} value={pp.id}>
-                    {pp.label}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
+        {/* The period is POVA's clock, and POVA is the Overall view. The other
+            views are the "why" behind it — Manufacturing and Labor carry their
+            own time framing (12-period, 3wk MA) and have no budget variance to
+            compare against, so it would only mislead there; Machine health is
+            live and keeps its own realtime/historical toggle. */}
+        {view === "exec" && (
+          <span className="flex items-center flex-wrap" style={{ gap: 10 }}>
+              {/* A dropdown rather than three segments: the labels are date ranges
+                  now, and three of those side by side is a wall of dates. */}
+              <Select value={period} onValueChange={setPeriod}>
+                <Select.Trigger size="sm" aria-label="Period" className="w-[212px]">
+                  <span
+                    className="min-w-0 items-center"
+                    style={{ display: "flex", gap: 7, whiteSpace: "nowrap" }}
+                  >
+                    <CalendarBlank
+                      size={15}
+                      weight="duotone"
+                      className="shrink-0"
+                      style={{ color: "var(--text-secondary)" }}
+                    />
+                    {/* In the trigger, not on the options — the list would
+                        otherwise say "Period" three times. The control lost its
+                        adjacent label, so it has to name itself. */}
+                    <span style={{ color: "var(--ds-text-secondary)" }}>Period ·</span>
+                    <Select.Value />
+                  </span>
+                </Select.Trigger>
+                <Select.Content>
+                  {POVA_PERIODS.map((pp) => (
+                    <Select.Item key={pp.id} value={pp.id}>
+                      {pp.label}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
           </span>
-          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-            actual vs budget
-          </span>
-        </div>
-      )}
-
-      {/* Machine health — the live line, moved here from Make. Any action that
-          crosses a threshold redirects to the decision queue with its deck
-          open, because deciding happens on Make, not here. */}
-      {view === "machine" && (
-        <LineHealth onOpenAction={(id) => router.push(`/make?action=${id}`)} />
-      )}
+        )}
+      </div>
 
       {view === "exec" && (
         /* The read, and nothing else. The summary tiles, the eight-row table
@@ -177,10 +175,16 @@ export default function PerformancePage() {
            category's actual-vs-budget detail is one click into its drawer. A
            number stated three ways is three things to keep in step. */
         <div className="flex flex-col" style={{ gap: 16 }}>
-          <PovaAnalysis
-            period={period}
-            build={pova}
-            onOpenCategory={setPovaDrawer}
+          <AnalysisBlock<PovaLens>
+            chainTitle="The causal chain · how the money actually moved"
+            chainScope="plan → labor → cost"
+            chain={povaChain(period, pova)}
+            read={povaChainRead(period, pova)}
+            breakdownTitle={`Break the ${pova.summary.totalVariance.replace(/ [UF]$/, "")} down`}
+            lenses={POVA_LENSES}
+            rows={(l) => povaLens(l, period, pova)}
+            context={povaContext(pova)}
+            onOpenRow={setPovaDrawer}
           />
 
           <AttentionBand onOpenMake={(id) => router.push(`/make?action=${id}`)} />
@@ -188,68 +192,41 @@ export default function PerformancePage() {
       )}
 
       {view === "mfg" && (
-        <div className="flex flex-col" style={{ gap: 16 }}>
-          <KpiRow kpis={MFG_KPIS} />
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title="OEE · Backing 2 · 12 periods" scope="feeds POVA · Production efficiency">
-              <Trend series={OEE_TREND} unit="%" color="var(--text-warning, #F79009)" />
-            </Panel>
-            <Panel title="Downtime causes · 12 periods" scope="hours and dollars · each cause feeds a POVA category">
-              <div className="flex flex-col" style={{ gap: 12 }}>
-                {DOWNTIME_CAUSES.map((b) => (
-                  <div key={b.label} className="flex items-center" style={{ gap: 12 }}>
-                    <span className="flex flex-col shrink-0" style={{ gap: 1, width: 128 }}>
-                      <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>{b.label}</span>
-                      <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{b.sub}</span>
-                    </span>
-                    <span aria-hidden="true" className="flex-1" style={{ height: 10, borderRadius: 999, background: "var(--surface-sunken)" }}>
-                      <span
-                        style={{
-                          display: "block",
-                          height: "100%",
-                          width: `${b.pct}%`,
-                          borderRadius: 999,
-                          background: b.tone === "hot" ? "var(--text-danger)" : b.tone === "ok" ? "var(--text-success)" : "var(--color-iris-500, #7C6BF0)",
-                        }}
-                      />
-                    </span>
-                    <span className="shrink-0 inline-flex items-baseline justify-end" style={{ width: 96, gap: 8 }}>
-                      <span className="type-body-medium" style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}>{b.value}</span>
-                      <span className="type-body" style={{ color: "var(--text-danger)", fontVariantNumeric: "tabular-nums" }}>{b.usd}</span>
-                    </span>
-                    <span
-                      className="type-caption shrink-0"
-                      style={{
-                        padding: "2px 9px",
-                        borderRadius: 999,
-                        background: "var(--color-iris-50)",
-                        border: "1px solid var(--color-iris-200)",
-                        color: "var(--color-iris-700)",
-                        whiteSpace: "nowrap",
-                      }}
-                      title="The POVA category this cause feeds"
-                    >
-                      {b.pova}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-          </div>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title="Defects by station × position" scope="feeds POVA · Waste and scrap">
-              <Heatmap />
-            </Panel>
-            <Panel title="Defect rate · Backing 2 · 12 periods" scope="feeds POVA · Waste and scrap">
-              <Trend series={YIELD_TREND} unit="%" color="var(--text-danger)" />
-            </Panel>
-          </div>
+        /* Same three questions as the Overall read, in OEE points rather than
+           dollars. The panels that used to sit here — the OEE trend, the
+           downtime bars, the defect heatmap — each answered one slice of "where
+           is it concentrated", which the lens switch now answers in one place. */
+        <AnalysisBlock<MfgLens>
+          chainTitle="The causal chain · why the belt can't hit rate"
+          chainScope="machine → rate → cost"
+          chain={MFG_CHAIN}
+          read={MFG_CHAIN_READ}
+          breakdownTitle="Break the OEE loss down"
+          lenses={MFG_LENSES}
+          rows={mfgLens}
+          context={MFG_CONTEXT}
+        />
+      )}
 
+      {view === "machine" && (
+        /* The one view whose clock is now. The analysis leads; the live line
+           detail sits under it, because a cascade caught before the defect is
+           an argument first and a chart second. */
+        <div className="flex flex-col" style={{ gap: 16 }}>
+          <AnalysisBlock<MachineLens>
+            chainTitle="The causal chain · the cascade caught early"
+            chainScope="signal → quality → cost"
+            chain={MACHINE_CHAIN}
+            read={MACHINE_CHAIN_READ}
+            breakdownTitle="Break the shift's exposure down"
+            lenses={MACHINE_LENSES}
+            rows={machineLens}
+            context={MACHINE_CONTEXT}
+          />
+          <LineHealth onOpenAction={(id) => router.push(`/make?action=${id}`)} />
         </div>
       )}
 
-      {/* Labor — the analysis workbench. Pure analysis, process-scoped; the
-          only forward path is the pointer to Make, where decisions live. */}
       {view === "labor" && (
         <LaborAnalysis
           onOpenMake={(id) => router.push(id ? `/make?action=${id}` : "/make")}
@@ -264,80 +241,6 @@ export default function PerformancePage() {
 }
 
 /* ── KPI row — separated cards, matches Make ────────────────────────────── */
-
-function KpiRow({ kpis }: { kpis: ReadonlyArray<Kpi> }) {
-  const ink = (t?: Kpi["tone"]) =>
-    t === "bad"
-      ? "var(--text-danger)"
-      : t === "warn"
-        ? "var(--text-warning, #B7791F)"
-        : t === "good"
-          ? "var(--text-success)"
-          : "var(--ds-text-primary)";
-  return (
-    <div
-      className="grid"
-      style={{ gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}
-    >
-      {kpis.map((k) => (
-        <div
-          key={k.key}
-          className="flex flex-col"
-          style={{
-            gap: 2,
-            padding: "13px 14px",
-            borderRadius: 12,
-            background: "var(--surface-base)",
-            border: "1px solid var(--border-default)",
-            boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-          }}
-        >
-          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{k.label}</span>
-          <span
-            style={{
-              fontSize: 22,
-              fontWeight: 600,
-              letterSpacing: "-0.01em",
-              lineHeight: 1.15,
-              color: ink(k.tone),
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {k.value}
-          </span>
-          <span
-            className="type-caption"
-            style={{
-              color: "var(--ds-text-secondary)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              marginTop: 2,
-            }}
-            title={k.detail}
-          >
-            {k.detail}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Trend({ series, unit, color }: { series: ReadonlyArray<{ label: string; value: number }>; unit?: string; color?: string }) {
-  return (
-    <LineChart
-      data={series.map((p) => ({ label: p.label, value: p.value }))}
-      height={150}
-      smooth
-      showArea
-      showGrid
-      showXAxisLabels
-      lineColor={color}
-      formatValue={(v) => `${unit === "k" ? "$" : ""}${v}${unit && unit !== "k" ? ` ${unit}` : unit === "k" ? "k" : ""}`}
-    />
-  );
-}
 
 function BarList({ bars, onExplain }: { bars: ReadonlyArray<Bar>; onExplain: (b: Bar) => void }) {
   return (
@@ -377,38 +280,6 @@ function BarList({ bars, onExplain }: { bars: ReadonlyArray<Bar>; onExplain: (b:
           </Button>
         </div>
       ))}
-    </div>
-  );
-}
-
-function Heatmap() {
-  const rowTotals = DEFECT_GRID.map((r) => r.reduce((n, v) => n + v, 0));
-  const hot = rowTotals.indexOf(Math.max(...rowTotals));
-  return (
-    <div className="flex flex-col" style={{ gap: 6 }}>
-      {DEFECT_STATIONS.map((station, r) => (
-        <div key={station} className="flex items-center" style={{ gap: 10 }}>
-          <span
-            className="type-caption shrink-0"
-            style={{ width: 66, textAlign: "right", color: r === hot ? "var(--color-iris-700)" : "var(--ds-text-secondary)", fontWeight: r === hot ? 600 : undefined }}
-          >
-            {station}
-          </span>
-          <div className="flex flex-1" style={{ gap: 6 }}>
-            {DEFECT_GRID[r].map((intensity, c) => (
-              <span key={c} aria-hidden="true" style={{ flex: 1, height: 22, borderRadius: 6, background: HEAT_RAMP[CELL_STOP[intensity]] }} />
-            ))}
-          </div>
-        </div>
-      ))}
-      <div className="flex items-center" style={{ gap: 10, marginTop: 2 }}>
-        <span className="shrink-0" style={{ width: 66 }} />
-        <div className="flex flex-1" style={{ gap: 6 }}>
-          {DEFECT_POSITIONS.map((p) => (
-            <span key={p} className="type-caption flex-1 text-center" style={{ color: "var(--ds-text-secondary)" }}>{p}</span>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -469,31 +340,6 @@ function SimpleTable({ head, rows }: { head: string[]; rows: { key: string; flag
     </div>
   );
 }
-
-function Panel({ title, scope, children }: { title: string; scope?: string; children: React.ReactNode }) {
-  return (
-    <section
-      style={{
-        background: "var(--surface-base)",
-        border: "1px solid var(--border-default)",
-        borderRadius: 14,
-        boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-        overflow: "hidden",
-        height: "100%",
-      }}
-    >
-      <div
-        className="flex items-center justify-between flex-wrap"
-        style={{ gap: 12, padding: "11px 16px", borderBottom: "1px solid var(--border-default)" }}
-      >
-        <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>{title}</span>
-        {scope && <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>{scope}</span>}
-      </div>
-      <div style={{ padding: 16 }}>{children}</div>
-    </section>
-  );
-}
-
 
 /* ── POVA table — the core artifact of the Overall view ──────────────────── */
 
