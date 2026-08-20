@@ -9,8 +9,10 @@ import {
   type DataTableColumn,
 } from "@navanta-ai/design-system";
 import { useRun } from "@/context/RunContext";
+import { useScope } from "@/context/ScopeContext";
+import { plantLabel } from "@/types/division";
 import { ATTENTION_OVERALL, type AttentionItem } from "@/data/attention";
-import { MAKE_ACTIONS } from "@/types/action";
+import { MAKE_ACTIONS, SOURCE_LABEL } from "@/types/action";
 
 /**
  * The seam between analysis and decision, on the Overall read.
@@ -25,6 +27,7 @@ import { MAKE_ACTIONS } from "@/types/action";
  */
 export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string) => void }) {
   const { status, workOrderRaised } = useRun();
+  const { plant } = useScope();
 
   /* Decided-ness is read from the run state Make writes, not tracked again
      here — two copies of "has this been decided" is how a page ends up
@@ -43,7 +46,7 @@ export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string)
   const columns: DataTableColumn<AttentionItem>[] = [
     {
       key: "subject",
-      label: "What crossed",
+      label: "Subject",
       alwaysVisible: true,
       /* Fixed, and the caption truncates inside it. The detail is a sentence,
          and a sentence in an unbounded column widens the table until the
@@ -52,7 +55,7 @@ export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string)
       cell: (row) => (
         <span className="flex flex-col min-w-0" style={{ gap: 1 }}>
           <span className="type-body-medium truncate" style={{ color: "var(--ds-text-primary)" }}>
-            {row.subject}
+            {row.subject} · {plantLabel(plant)}
           </span>
           {/* Wraps rather than truncates: this line carries the argument —
               "85% traces to downtime, not staffing" — and half of that
@@ -78,6 +81,27 @@ export default function AttentionBand({ onOpenMake }: { onOpenMake: (id: string)
       cell: (row) => (
         <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
           {row.rule}
+        </span>
+      ),
+    },
+    {
+      key: "affects",
+      label: "Affects",
+      width: 150,
+      cell: (row) => (
+        <span
+          className="type-caption inline-flex items-center"
+          style={{
+            padding: "2px 9px",
+            borderRadius: 999,
+            background: "var(--color-iris-50)",
+            border: "1px solid var(--color-iris-200)",
+            color: "var(--color-iris-700)",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {SOURCE_LABEL[row.affects]}
         </span>
       ),
     },
