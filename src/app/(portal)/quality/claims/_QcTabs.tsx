@@ -229,11 +229,18 @@ export default function QcTabs() {
               so on `underline` it silently renders nothing. A flex row gets the
               same result for any variant.
 
-              No inset of its own on the left — the Tabs tablist already carries
-              px-4, and adding to it pushed the tabs past the card's title. */}
+              8px on the left, not 16: the `underline` variant's tablist carries
+              no padding of its own (px-4 lives in the `underline-pill` branch),
+              and each tab's inner span already adds 8 — so 8 here puts the tab
+              text on the same line as the card's title. */}
           <div
             className="flex items-center justify-between"
-            style={{ gap: 12, paddingRight: 16, borderBottom: "1px solid var(--border-light)" }}
+            style={{
+              gap: 12,
+              paddingLeft: 8,
+              paddingRight: 16,
+              borderBottom: "1px solid var(--border-light)",
+            }}
           >
             <Tabs
               variant="underline"
