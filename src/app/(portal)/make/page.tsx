@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Gauge } from "@phosphor-icons/react";
 import {
@@ -28,7 +28,21 @@ type TabId = "person" | "auto";
  * belongs to the thing it is evidence about: an action's deck, or the entity's
  * own drawer. A panel nobody has a reason to open is a panel nobody reads.
  */
+/**
+ * `useSearchParams` bails out of prerendering unless it sits under a Suspense
+ * boundary, so the page's default export is the boundary and the queue itself
+ * is the child. Without this the whole route fails static export at build
+ * time, which is what broke the build rather than anything on the page.
+ */
 export default function MakePage() {
+  return (
+    <Suspense fallback={null}>
+      <MakeQueue />
+    </Suspense>
+  );
+}
+
+function MakeQueue() {
   const { plant } = useScope();
   const { profile } = usePersona();
   const { status, workOrderRaised } = useRun();
