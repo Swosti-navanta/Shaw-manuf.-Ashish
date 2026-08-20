@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import {
   Button,
   Input,
-  PanelTimeline,
   Progress,
   SegmentedControl,
   Select,
@@ -620,7 +619,7 @@ export default function ScheduleBoard() {
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="all">All belts</Select.Item>
+                <Select.Item value="all">All machines</Select.Item>
                 {WORK_CENTRES.map((wc) => (
                   <Select.Item key={wc.id} value={wc.id}>
                     {wc.name}
@@ -979,16 +978,27 @@ export default function ScheduleBoard() {
                   // Only the lanes wired to a process belt take a drag, open a
                   // details card, or split a lot. The rest display their load.
                   if (!belt) {
+                    /* Not draggable — a lane without a belt has no sequence to
+                       re-order — but still openable. Every card is one stage of
+                       some material's route, and a card you cannot open is a
+                       route you cannot follow. */
                     return (
                       <Block
                         key={p.run.id}
                         placed={p}
                         process={lane.centreName}
                         splitLot={false}
-                        interactive={false}
-                        selected={false}
+                        interactive
+                        expanded={detail?.runId === p.run.id}
+                        selected={detail?.runId === p.run.id}
                         dim={dim}
-                        onSelect={() => {}}
+                        onSelect={(el) =>
+                          setDetail((cur) =>
+                            cur?.runId === p.run.id
+                              ? null
+                              : { runId: p.run.id, anchor: el.getBoundingClientRect() },
+                          )
+                        }
                       />
                     );
                   }
@@ -1957,24 +1967,13 @@ function RunPopover({
     };
     document.addEventListener("keydown", onKey);
 
-    // Scrolling or resizing moves the bar out from under a fixed card, so the
-    // card goes rather than drifting away from what it describes.
-    //
-    // Registered a frame late on purpose: clicking a bar focuses it, and the
-    // browser scrolls the track container to bring a focused child into view.
-    // That scroll fires in the same tick as the click, so a listener attached
-    // immediately would close the card before it had been seen once.
-    const frame = requestAnimationFrame(() => {
-      window.addEventListener("scroll", onClose, true);
-      window.addEventListener("resize", onClose);
-    });
-
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onClose, true);
-      window.removeEventListener("resize", onClose);
-    };
+    /* Deliberately no scroll or resize listener. The card used to close on
+       both because it is anchored under the bar and would drift away from what
+       it describes — but opening it now lights that material's whole route
+       across four lanes, and scrolling to follow the route is the reason the
+       card is open. Dismissing it mid-scroll fought the thing it had just
+       started. */
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   const laneIndex = lanes.findIndex((l) => l.layout.placed.some((p) => p.run.id === runId));
@@ -2091,34 +2090,26 @@ function RunPopover({
         ))}
       </div>
 
-      {/* Where this material has been and where it is going.
-          The board draws one card per stage on its own belt, so a lot's route
-          through the plant is only visible by reading four lanes at once. The
-          stages are the same genealogy the hover overlay used to draw as lines
-          across the board — read here instead, where each one can carry its
-          belt and its clock rather than needing to be hovered to exist. */}
+      {/* The route is not listed here any more — it is lit on the board, on
+          the lanes it actually runs on, which is a shape rather than a list
+          and does not cost the card the height that was covering it. What
+          stays is where the journey starts and ends. */}
       {journey.length > 1 && (
-        <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border-light)" }}>
-          <PanelTimeline
-            title="Through the plant"
-            idPrefix={`run-${run.id}`}
-            milestones={journey.map((n) => ({
-              id: n.runId,
-              label: `${n.centreName} · ${n.laneCode}`,
-              /* Position in the route, not wall-clock: the card you opened is
-                 where the material is, everything before it is done and
-                 everything after is still to come. */
-              status:
-                n.runId === run.id
-                  ? ("active" as const)
-                  : n.centreIdx < (journey.find((x) => x.runId === run.id)?.centreIdx ?? 0)
-                    ? ("completed" as const)
-                    : ("pending" as const),
-              date: `${clockAt(n.start)} – ${clockAt(n.start + n.hours)}`,
-              events: [],
-            }))}
-          />
-        </div>
+        <span
+          className="flex items-baseline justify-between"
+          style={{ gap: 12, padding: "8px 12px", borderTop: "1px solid var(--border-light)" }}
+        >
+          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+            Through the plant
+          </span>
+          <span
+            className="type-caption"
+            style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
+          >
+            {journey.length} stages · {clockAt(journey[0].start)}–
+            {clockAt(journey[journey.length - 1].start + journey[journey.length - 1].hours)}
+          </span>
+        </span>
       )}
 
       <div
