@@ -27,6 +27,7 @@ import {
   type PovaRow,
 } from "@/data/performance-analytics";
 import LaborAnalysis from "./_components/LaborAnalysis";
+import AttentionBand from "./_components/AttentionBand";
 import LineHealth from "./_components/LineHealth";
 
 type View = "exec" | "mfg" | "machine" | "labor";
@@ -261,6 +262,10 @@ export default function PerformancePage() {
               <Trend series={MARGIN_TREND} unit="k" color="var(--text-danger)" />
             </Panel>
           </div>
+
+          {/* Last, because it is the conclusion: everything above explains why a
+              number moved, and this names what crossed a limit while doing so. */}
+          <AttentionBand onOpenMake={(id) => router.push(`/make?action=${id}`)} />
         </div>
       )}
 
@@ -321,6 +326,7 @@ export default function PerformancePage() {
               <Trend series={YIELD_TREND} unit="%" color="var(--text-danger)" />
             </Panel>
           </div>
+
         </div>
       )}
 

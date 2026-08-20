@@ -39,6 +39,27 @@ export const CATEGORY_OF: Record<ActionKind, ActionCategory> = {
   report: "Reporting",
 };
 
+/**
+ * The clock a decision runs on.
+ *
+ * The queue's other axis — `lane` — answers *who* decides, and the Thresholds
+ * dial governs it. This answers *by when*, which is a different question and
+ * the one that decides what gets read first. A 22-minute rate deviation and a
+ * quarterly capital case are both real; they are not the same kind of urgent,
+ * and a queue sorted only by money puts the $61k/period case above the thing
+ * that is bleeding right now.
+ */
+export type Horizon = "shift" | "period" | "quarter";
+
+export const HORIZON_LABEL: Record<Horizon, string> = {
+  shift: "This shift",
+  period: "This period",
+  quarter: "This quarter",
+};
+
+/** Shortest clock first — the order the queue reads in. */
+export const HORIZON_ORDER: ReadonlyArray<Horizon> = ["shift", "period", "quarter"];
+
 export interface MakeAction {
   id: string;
   kind: ActionKind;
@@ -64,6 +85,9 @@ export interface MakeAction {
   machine?: string;
   /** The analysis this decision rose out of. */
   source: AnalysisSource;
+  /** The clock it runs on. Set where the threshold was crossed, on
+   *  Performance, and carried here so the urgent can't bury the important. */
+  horizon: Horizon;
   /** Which lane it landed in. `person` rows are the queue's reason to exist. */
   lane: Lane;
   /** The agent that raised it. */
@@ -105,6 +129,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     stage: "Coating",
     machine: "Backing 2",
     source: "manufacturing",
+    horizon: "shift",
     lane: "person",
     agent: "Rowan",
     insight: { headline: "Re-sequence · run DL-4471 whole", detail: "+$1,840 · holds both dates" },
@@ -123,6 +148,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     stage: "Coating",
     machine: "Backing 2",
     source: "machine",
+    horizon: "shift",
     lane: "limit",
     agent: "Rowan",
     insight: { headline: "Create the work order now", detail: "ahead of the PM in 3 days" },
@@ -138,6 +164,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     stage: "Tufting",
     machine: "Tufting 3",
     source: "machine",
+    horizon: "shift",
     lane: "auto",
     agent: "Rowan",
     insight: { headline: "Logged, nobody interrupted", detail: "inside the ±8% band" },
@@ -153,6 +180,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     subject: { label: "Backing 2 belt", kind: "machine", id: "Backing 2" },
     stage: "Coating",
     source: "overall",
+    horizon: "quarter",
     lane: "person",
     agent: "Roll-up",
     insight: { headline: "Cap new promises on this belt", detail: "until headroom clears 12%" },
@@ -170,6 +198,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     stage: "Warping",
     machine: "Warper-02",
     source: "labor",
+    horizon: "period",
     lane: "person",
     agent: "Roll-up",
     insight: { headline: "Rebalance warp release · notify Sawyer", detail: "OT ▲ +38% vs 3wk MA" },
@@ -184,6 +213,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     detail: "Assembled from the run record — nobody writes these.",
     subject: { label: "Shift A", kind: "batch", id: "B-88214" },
     source: "manufacturing",
+    horizon: "shift",
     lane: "auto",
     agent: "Rowan",
     insight: { headline: "Built and sent", detail: "nobody assembled these" },
