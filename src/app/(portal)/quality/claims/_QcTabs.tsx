@@ -227,7 +227,10 @@ export default function QcTabs() {
               The DS `Tabs` component does take a rightSlot — so the shell
               keeps the chrome and the footer, and the tab row is composed
               here where the chips can ride on its right edge. */}
-          <div style={{ padding: "0 16px", borderBottom: "1px solid var(--border-light)" }}>
+          {/* No inset of its own: the DS Tabs tablist already carries px-4,
+              and adding 16px here doubled it, pushing the tabs in past the
+              card's title. */}
+          <div style={{ borderBottom: "1px solid var(--border-light)" }}>
             <Tabs
               variant="underline-pill"
               tabs={[
