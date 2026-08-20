@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AiStar, Button, LineChart, SegmentedControl } from "@navanta-ai/design-system";
-import { X } from "@phosphor-icons/react";
+import { DownloadSimple, X } from "@phosphor-icons/react";
 import { useChatPanel } from "@/context/ChatPanelContext";
 import {
   DEFECT_GRID,
@@ -26,10 +26,8 @@ import {
   POVA_CURRENT_PERIOD,
   POVA_DETAIL,
   POVA_PERIODS,
-  POVA_ROWS,
-  POVA_SUMMARY,
-  VARIANCE_BY_PLANT,
   YIELD_TREND,
+  buildPova,
   type Bar,
   type Kpi,
   type PovaComparison,
@@ -61,6 +59,12 @@ export default function PerformancePage() {
   const [comparison, setComparison] = useState<PovaComparison>("budget");
   const [povaDrawer, setPovaDrawer] = useState<PovaRow | null>(null);
   const periodMeta = POVA_PERIODS.find((pp) => pp.id === period) ?? POVA_PERIODS[1];
+  // The period bar is a live dial: the summary tiles, the eight-row table and
+  // variance-by-plant are all derived from (period, comparison), recomputed
+  // whenever either toggle moves.
+  const pova = useMemo(() => buildPova(period, comparison), [period, comparison]);
+  const comparisonLabel =
+    comparison === "budget" ? "vs budget" : comparison === "prior" ? "vs prior period" : "vs same period LY";
 
   // A Because card's CTA routes into the view that answers it.
   const followCta = (cta: string) => {
@@ -73,27 +77,34 @@ export default function PerformancePage() {
 
   return (
     <div className="flex flex-col" style={{ gap: 16 }}>
-      <header className="flex flex-col" style={{ gap: 4 }}>
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.11em",
-            textTransform: "uppercase",
-            color: "var(--ds-text-placeholder, var(--text-muted))",
-          }}
-        >
-          Performance · Roll-up · All plants
-        </span>
-        <h1
-          style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--ds-text-primary)" }}
-        >
-          Where the money is and where the line is hurting
-        </h1>
-        <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
-          POVA is the financial read — actual against budget across the eight categories the plant
-          SOPs define. Manufacturing, Machine health and Labor each answer why a category moved.
-          What crosses a threshold becomes a decision on Make.
-        </p>
+      <header className="flex items-start justify-between flex-wrap" style={{ gap: 16 }}>
+        <div className="flex flex-col" style={{ gap: 4 }}>
+          <span
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.11em",
+              textTransform: "uppercase",
+              color: "var(--ds-text-placeholder, var(--text-muted))",
+            }}
+          >
+            Performance · Roll-up · All plants
+          </span>
+          <h1
+            style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--ds-text-primary)" }}
+          >
+            Where the money is and where the line is hurting
+          </h1>
+          <p className="type-body" style={{ color: "var(--ds-text-secondary)", maxWidth: 760 }}>
+            POVA is the financial read — actual against budget across the eight categories the plant
+            SOPs define. Manufacturing, Machine health and Labor each answer why a category moved.
+            What crosses a threshold becomes a decision on Make.
+          </p>
+        </div>
+        {/* Export the current period's reports. Visual for now — the wiring to
+            a TM1 / CSV pull lands when the data source is connected. */}
+        <Button variant="outline" size="sm" iconLeft={<DownloadSimple size={14} weight="bold" />}>
+          Export
+        </Button>
       </header>
 
       <SegmentedControl
@@ -108,9 +119,12 @@ export default function PerformancePage() {
         ]}
       />
 
-      {/* The period bar — POVA's clock governs the analytical views. Machine
-          health is live, so it keeps its own realtime/historical toggle. */}
-      {view !== "machine" && (
+      {/* The period bar is POVA's clock, and POVA is the Overall view. The
+          other views are the "why" behind it — Manufacturing and Labor carry
+          their own time framing (12-period, 3wk MA) and have no budget variance
+          to compare against, so the bar would only mislead there; Machine
+          health is live and keeps its own realtime/historical toggle. */}
+      {view === "exec" && (
         <div
           className="flex items-center justify-between flex-wrap"
           style={{
@@ -160,9 +174,9 @@ export default function PerformancePage() {
           {/* POVA summary — the three numbers the period rolls up to. */}
           <div className="grid" style={{ gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
             {[
-              { k: "Total operating variance", v: POVA_SUMMARY.totalVariance, sub: POVA_SUMMARY.totalPct, bad: true },
-              { k: "Worst category", v: POVA_SUMMARY.worstCategory.split(" · ")[0], sub: POVA_SUMMARY.worstCategory.split(" · ")[1], bad: true },
-              { k: "Cost per SY", v: POVA_SUMMARY.costPerSy.split(" / ")[0], sub: `budget ${POVA_SUMMARY.costPerSy.split(" / ")[1]}` },
+              { k: "Total operating variance", v: pova.summary.totalVariance, sub: pova.summary.totalPct, bad: true },
+              { k: "Worst category", v: pova.summary.worstCategory.split(" · ")[0], sub: pova.summary.worstCategory.split(" · ")[1], bad: true },
+              { k: "Cost per SY", v: pova.summary.costPerSy.split(" / ")[0], sub: `budget ${pova.summary.costPerSy.split(" / ")[1]}` },
             ].map((t) => (
               <div
                 key={t.k}
@@ -198,11 +212,11 @@ export default function PerformancePage() {
               unfavorable first; every row names its factor codes and the one
               view that answers its "why". */}
           <Panel
-            title="Plant operating variance · actual vs budget"
-            scope={`${periodMeta.id} · ${comparison === "budget" ? "vs budget" : comparison === "prior" ? "vs prior period" : "vs same period LY"} · click a row for the breakdown`}
+            title={`Plant operating variance · actual ${comparisonLabel}`}
+            scope={`${periodMeta.id} · ${comparisonLabel} · click a row for the breakdown`}
           >
             <PovaTable
-              rows={POVA_ROWS}
+              rows={pova.rows}
               onOpen={(r) => setPovaDrawer(r)}
               onDrill={(r) => {
                 if (r.drillsTo.view) setView(r.drillsTo.view);
@@ -212,9 +226,9 @@ export default function PerformancePage() {
           </Panel>
 
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title="Variance vs budget · by plant" scope={`${periodMeta.id} · worst first`}>
+            <Panel title={`Variance ${comparisonLabel} · by plant`} scope={`${periodMeta.id} · worst first`}>
               <div className="flex flex-col" style={{ gap: 8 }}>
-                {VARIANCE_BY_PLANT.map((p) => (
+                {pova.byPlant.map((p) => (
                   <div key={p.plant} className="flex items-center justify-between" style={{ gap: 12 }}>
                     <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>{p.plant}</span>
                     <span
@@ -395,7 +409,7 @@ export default function PerformancePage() {
               size="sm"
               onClick={() => {
                 setView("exec");
-                const row = POVA_ROWS.find((r) => r.category === "Overtime");
+                const row = pova.rows.find((r) => r.category === "Overtime");
                 if (row) setPovaDrawer(row);
               }}
             >

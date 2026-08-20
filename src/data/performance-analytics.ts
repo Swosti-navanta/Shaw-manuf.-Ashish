@@ -64,20 +64,13 @@ export const POVA_COMPARISONS: ReadonlyArray<{ id: PovaComparison; label: string
   { id: "ly", label: "vs same period LY" },
 ];
 
-export const POVA_SUMMARY = {
-  totalVariance: "$186k U",
-  totalPct: "+8.1%",
-  worstCategory: "Overtime · $47k U (+38%)",
-  costPerSy: "$1.94 act / $1.79 bud",
-} as const;
-
 export interface PovaRow {
   category: string;
   actual: string;
   budget: string;
   variance: string;
   variancePct: string;
-  /** U = over budget (bad); F = favorable. */
+  /** U = over the baseline (bad); F = favorable. */
   unfavorable: boolean;
   perSy: string;
   trend: ReadonlyArray<number>;
@@ -87,115 +80,195 @@ export interface PovaRow {
   drillsTo: { label: string; view?: "mfg" | "machine" | "labor"; href?: string; note?: string };
 }
 
-/** Eight rows in SOP order, sorted by unfavorable variance descending. */
-export const POVA_ROWS: ReadonlyArray<PovaRow> = [
+/* ── The numbers behind POVA ────────────────────────────────────────────────
+ *
+ * The period bar (P12/P13/P14 × budget/prior/LY) is a real dial, not a label:
+ * the summary tiles, the eight-row table and variance-by-plant are all derived
+ * from this base by `buildPova`, so flipping a toggle recomputes the read.
+ *
+ * P13 is the hero period — the one authored to match the client's Excel. P12
+ * and P14 scale off it per row (`factor`), so Overtime is the P13 story it is
+ * meant to be but calms down either side of it. In TM1 each of these becomes a
+ * period cube; the shape here is what the query has to return.
+ */
+type Period = "P12" | "P13" | "P14";
+
+interface PovaBase {
+  category: string;
+  /** $k, P13 actual — the authored hero figure. */
+  actual13: number;
+  /** $k, the plan. A budget is set once, so it holds across the periods. */
+  budget: number;
+  /** $k, last year's same-period spend (P13 basis; scaled per period). */
+  ly: number;
+  /** $/SY actual (P13) and $/SY budget — the unit-cost reference column. */
+  perSyAct13: number;
+  perSyBud: number;
+  /** Per-period multiplier on the actual — how the category moves across P12–P14. */
+  factor: Record<Period, number>;
+  affects: ReadonlyArray<string>;
+  drillsTo: PovaRow["drillsTo"];
+}
+
+/** Eight categories in SOP order. Overtime spikes in P13 (factor 1.0) and eases
+ *  on both sides — that is the whole "worst category" story the demo tells. */
+const POVA_BASE: ReadonlyArray<PovaBase> = [
   {
     category: "Production efficiency",
-    actual: "$618k",
-    budget: "$566k",
-    variance: "$52k U",
-    variancePct: "+9.2%",
-    unfavorable: true,
-    perSy: "$0.64 / $0.59",
-    trend: [8, 9, 10, 11, 12, 13],
-    affects: ["2.1", "5.1"],
-    drillsTo: { label: "Manufacturing · OEE", view: "mfg" },
+    actual13: 618, budget: 566, ly: 560, perSyAct13: 0.64, perSyBud: 0.59,
+    factor: { P12: 0.96, P13: 1, P14: 1.02 },
+    affects: ["2.1", "5.1"], drillsTo: { label: "Manufacturing · OEE", view: "mfg" },
   },
   {
     category: "Overtime",
-    actual: "$171k",
-    budget: "$124k",
-    variance: "$47k U",
-    variancePct: "+38%",
-    unfavorable: true,
-    perSy: "$0.087 / $0.063",
-    trend: [7, 8, 9, 10, 12, 14],
-    affects: ["3.2"],
-    drillsTo: { label: "Labor · P13 tracker", view: "labor" },
+    actual13: 171, budget: 124, ly: 130, perSyAct13: 0.087, perSyBud: 0.063,
+    factor: { P12: 0.80, P13: 1, P14: 0.90 },
+    affects: ["3.2"], drillsTo: { label: "Labor · P13 tracker", view: "labor" },
   },
   {
     category: "Waste and scrap",
-    actual: "$172k",
-    budget: "$141k",
-    variance: "$31k U",
-    variancePct: "+22%",
-    unfavorable: true,
-    perSy: "$0.18 / $0.15",
-    trend: [6, 7, 7, 8, 9, 10],
-    affects: ["5.1", "5.3"],
-    drillsTo: { label: "Manufacturing · defects", view: "mfg" },
+    actual13: 172, budget: 141, ly: 150, perSyAct13: 0.18, perSyBud: 0.15,
+    factor: { P12: 0.94, P13: 1, P14: 1.04 },
+    affects: ["5.1", "5.3"], drillsTo: { label: "Manufacturing · defects", view: "mfg" },
   },
   {
     category: "Maintenance spending",
-    actual: "$157k",
-    budget: "$133k",
-    variance: "$24k U",
-    variancePct: "+18%",
-    unfavorable: true,
-    perSy: "$0.16 / $0.14",
-    trend: [6, 6, 7, 8, 8, 9],
-    affects: ["3.3"],
-    drillsTo: { label: "Machine health · WO costs", view: "machine" },
+    actual13: 157, budget: 133, ly: 138, perSyAct13: 0.16, perSyBud: 0.14,
+    factor: { P12: 0.90, P13: 1, P14: 1.06 },
+    affects: ["3.3"], drillsTo: { label: "Machine health · WO costs", view: "machine" },
   },
   {
     category: "Raw material usage",
-    actual: "$468k",
-    budget: "$450k",
-    variance: "$18k U",
-    variancePct: "+4.0%",
-    unfavorable: true,
-    perSy: "$0.49 / $0.47",
-    trend: [7, 7, 8, 8, 8, 9],
-    affects: ["5.1"],
-    drillsTo: { label: "Yarn · Sable", href: "/yarn" },
+    actual13: 468, budget: 450, ly: 455, perSyAct13: 0.49, perSyBud: 0.47,
+    factor: { P12: 0.97, P13: 1, P14: 1.01 },
+    affects: ["5.1"], drillsTo: { label: "Yarn · Sable", href: "/yarn" },
   },
   {
     category: "Utilities",
-    actual: "$159k",
-    budget: "$150k",
-    variance: "$9k U",
-    variancePct: "+6.0%",
-    unfavorable: true,
-    perSy: "$0.17 / $0.16",
-    trend: [7, 7, 7, 8, 8, 8],
-    affects: [],
-    drillsTo: { label: "Machine health", view: "machine", note: "energy-per-asset pen not built yet" },
+    actual13: 159, budget: 150, ly: 152, perSyAct13: 0.17, perSyBud: 0.16,
+    factor: { P12: 0.98, P13: 1, P14: 1.03 },
+    affects: [], drillsTo: { label: "Machine health", view: "machine", note: "energy-per-asset pen not built yet" },
   },
   {
     category: "Labor performance",
-    actual: "$408k",
-    budget: "$400k",
-    variance: "$8k U",
-    variancePct: "+2.0%",
-    unfavorable: true,
-    perSy: "$0.43 / $0.42",
-    trend: [7, 7, 7, 7, 8, 8],
-    affects: ["3.2"],
-    drillsTo: { label: "Labor", view: "labor" },
+    actual13: 408, budget: 400, ly: 402, perSyAct13: 0.43, perSyBud: 0.42,
+    factor: { P12: 0.98, P13: 1, P14: 1.01 },
+    affects: ["3.2"], drillsTo: { label: "Labor", view: "labor" },
   },
   {
     category: "Other operating costs",
-    actual: "$147k",
-    budget: "$150k",
-    variance: "$3k F",
-    variancePct: "−2.0%",
-    unfavorable: false,
-    perSy: "$0.15 / $0.16",
-    trend: [8, 8, 7, 7, 7, 7],
-    affects: [],
-    drillsTo: { label: "—" },
+    actual13: 147, budget: 150, ly: 149, perSyAct13: 0.15, perSyBud: 0.16,
+    factor: { P12: 1.01, P13: 1, P14: 0.99 },
+    affects: [], drillsTo: { label: "—" },
   },
 ];
 
-/** Variance vs budget by plant — shares the POVA baseline, worst first. */
-export const VARIANCE_BY_PLANT: ReadonlyArray<{ plant: string; value: string; unfavorable: boolean; hot?: boolean }> = [
-  { plant: "P13 · Dalton N", value: "$41k U", unfavorable: true, hot: true },
-  { plant: "P15 · Dalton S", value: "$22k U", unfavorable: true },
-  { plant: "P12 · Aiken", value: "$14k U", unfavorable: true },
-  { plant: "P17 · Cartersville", value: "$11k U", unfavorable: true },
-  { plant: "P11 · Kennesaw", value: "$8k U", unfavorable: true },
-  { plant: "P21 · Ringgold", value: "$6k F", unfavorable: false },
+/** Variance-by-plant base — P13, $k, positive = over (U). Worst first. */
+const PLANT_BASE: ReadonlyArray<{ plant: string; v: number }> = [
+  { plant: "P13 · Dalton N", v: 41 },
+  { plant: "P15 · Dalton S", v: 22 },
+  { plant: "P12 · Aiken", v: 14 },
+  { plant: "P17 · Cartersville", v: 11 },
+  { plant: "P11 · Kennesaw", v: 8 },
+  { plant: "P21 · Ringgold", v: -6 },
 ];
+
+const isPeriod = (p: string): p is Period => p === "P12" || p === "P13" || p === "P14";
+
+const fmtK = (n: number) => `$${Math.round(n)}k`;
+/** "$47k U" / "$3k F" — magnitude plus the favourable/unfavourable flag. */
+const fmtVar = (v: number) => `$${Math.round(Math.abs(v))}k ${v >= 0 ? "U" : "F"}`;
+/** Signed percentage against a baseline, using the typographic minus. */
+const fmtPct = (v: number, base: number) => {
+  const p = base === 0 ? 0 : (v / base) * 100;
+  return `${p >= 0 ? "+" : "−"}${Math.abs(p).toFixed(1)}%`;
+};
+/** Unit cost keeps three decimals below a dime, two above — matching the source. */
+const fmtSy = (n: number) => (n < 0.1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`);
+
+const actualOf = (b: PovaBase, p: Period) => b.actual13 * b.factor[p];
+/** The prior period's actual. P12 stands in a synthetic P11 a touch higher. */
+const priorOf = (b: PovaBase, p: Period) =>
+  p === "P12" ? b.actual13 * b.factor.P12 * 1.03 : p === "P13" ? actualOf(b, "P12") : actualOf(b, "P13");
+const baselineOf = (b: PovaBase, p: Period, c: PovaComparison) =>
+  c === "budget" ? b.budget : c === "prior" ? priorOf(b, p) : b.ly * b.factor[p];
+
+export interface PovaBuild {
+  summary: { totalVariance: string; totalPct: string; worstCategory: string; costPerSy: string };
+  rows: PovaRow[];
+  byPlant: ReadonlyArray<{ plant: string; value: string; unfavorable: boolean; hot?: boolean }>;
+}
+
+/**
+ * Derive the whole Overall financial read for one period and one comparison
+ * basis. The page memoises this on (period, comparison), so every toggle on the
+ * period bar recomputes the tiles, the table and the plant list together.
+ */
+export function buildPova(period: string, comparison: PovaComparison): PovaBuild {
+  const p: Period = isPeriod(period) ? period : "P13";
+
+  const rows: PovaRow[] = POVA_BASE.map((b) => {
+    const actual = actualOf(b, p);
+    const base = baselineOf(b, p, comparison);
+    const v = actual - base;
+    return {
+      category: b.category,
+      actual: fmtK(actual),
+      budget: fmtK(base),
+      variance: fmtVar(v),
+      variancePct: fmtPct(v, base),
+      unfavorable: v > 0,
+      perSy: `${fmtSy(b.perSyAct13 * b.factor[p])} / ${fmtSy(b.perSyBud)}`,
+      trend: [],
+      affects: b.affects,
+      drillsTo: b.drillsTo,
+    };
+  }).sort((a, b) => Number(b.variance.replace(/\D/g, "")) * (b.unfavorable ? 1 : -1)
+    - Number(a.variance.replace(/\D/g, "")) * (a.unfavorable ? 1 : -1));
+
+  // Summary — the three numbers the rows roll up to, on the same basis.
+  const totals = POVA_BASE.map((b) => {
+    const actual = actualOf(b, p);
+    const base = baselineOf(b, p, comparison);
+    return { b, actual, base, v: actual - base };
+  });
+  const totalV = totals.reduce((s, t) => s + t.v, 0);
+  const totalBase = totals.reduce((s, t) => s + t.base, 0);
+  // Worst = the biggest proportional overrun, not the biggest dollar one: a
+  // category that blew its budget by 38% is the story, even if another moved
+  // more dollars off a far larger base.
+  const worst = totals.reduce((w, t) => (t.v / t.base > w.v / w.base ? t : w), totals[0]);
+  const actualRatio =
+    totals.reduce((s, t) => s + t.actual, 0) / POVA_BASE.reduce((s, b) => s + b.actual13, 0);
+  const costAct = 1.94 * actualRatio;
+
+  // Variance-by-plant — scaled by the period and softened for the tighter
+  // prior/LY baselines, then re-sorted worst-first.
+  const plantPeriod: Record<Period, number> = { P12: 0.9, P13: 1, P14: 1.05 };
+  const plantComp: Record<PovaComparison, number> = { budget: 1, prior: 0.8, ly: 1.2 };
+  const scaledPlants = PLANT_BASE.map((pl) => ({
+    plant: pl.plant,
+    v: pl.v * plantPeriod[p] * plantComp[comparison],
+  })).sort((a, b) => b.v - a.v);
+  const worstPlantV = Math.max(...scaledPlants.map((pl) => pl.v));
+  const byPlant = scaledPlants.map((pl) => ({
+    plant: pl.plant,
+    value: fmtVar(pl.v),
+    unfavorable: pl.v > 0,
+    hot: pl.v === worstPlantV && pl.v > 0,
+  }));
+
+  return {
+    summary: {
+      totalVariance: fmtVar(totalV),
+      totalPct: fmtPct(totalV, totalBase),
+      worstCategory: `${worst.b.category} · ${fmtVar(worst.v)} (${fmtPct(worst.v, worst.base)})`,
+      costPerSy: `$${costAct.toFixed(2)} act / $1.79 bud`,
+    },
+    rows,
+    byPlant,
+  };
+}
 
 /** Category drawer content — variance concentration + the Because lines. */
 export interface PovaDetail {
