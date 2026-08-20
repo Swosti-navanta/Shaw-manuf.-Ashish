@@ -128,7 +128,7 @@ export const MAKE_ACTIONS: ReadonlyArray<MakeAction> = [
     subject: { label: "DL-4471", kind: "dyelot", id: "DL-4471" },
     stage: "Coating",
     machine: "Backing 2",
-    source: "manufacturing",
+    source: "machine",
     horizon: "shift",
     lane: "person",
     agent: "Rowan",
