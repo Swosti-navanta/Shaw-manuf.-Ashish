@@ -1997,6 +1997,7 @@ function RunPopover({
   onReview: () => void;
   onClose: () => void;
 }) {
+  const [rowsOpen, setRowsOpen] = useState(false);
   const [routeOpen, setRouteOpen] = useState(false);
 
   useEffect(() => {
@@ -2109,6 +2110,18 @@ function RunPopover({
         </button>
       </div>
 
+      {/* Collapsed to a header by default. The bar already carries the name,
+          the window and the lot, so opening a card is usually about lighting
+          the route on the board — not about reading five fields. They are one
+          click away, and the card stops covering the lanes it just lit. */}
+      <Fold
+        label="Details"
+        summary={`${lane.code} · ${clockAt(start)}–${clockAt(start + hours)}`}
+        open={rowsOpen}
+        onToggle={() => setRowsOpen((v) => !v)}
+      />
+
+      {rowsOpen && (
       <div className="flex flex-col">
         {rows.map((r, i) => (
           <span
@@ -2129,6 +2142,7 @@ function RunPopover({
           </span>
         ))}
       </div>
+      )}
 
       {/* The route is not listed here any more — it is lit on the board, on
           the lanes it actually runs on, which is a shape rather than a list
@@ -2140,42 +2154,14 @@ function RunPopover({
               the card leads with the shape of the route — how many, and the
               window it spans — and only takes the height to name them if
               someone asks for the clock on each one. */}
-          <button
-            type="button"
-            onClick={() => setRouteOpen((v) => !v)}
-            aria-expanded={routeOpen}
-            className="w-full transition-colors hover:bg-[var(--surface-raised)]"
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: 12,
-              padding: "8px 12px",
-              background: "none",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-          >
-            <span className="type-caption inline-flex items-center" style={{ gap: 5 }}>
-              <CaretDown
-                size={10}
-                weight="bold"
-                style={{
-                  color: "var(--ds-text-secondary)",
-                  transform: routeOpen ? "rotate(0deg)" : "rotate(-90deg)",
-                  transition: "transform .15s",
-                }}
-              />
-              <span style={{ color: "var(--ds-text-secondary)" }}>Timeline</span>
-            </span>
-            <span
-              className="type-caption"
-              style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
-            >
-              {journey.length} stages · {clockAt(journey[0].start)}–
-              {clockAt(journey[journey.length - 1].start + journey[journey.length - 1].hours)}
-            </span>
-          </button>
+          <Fold
+            label="Timeline"
+            summary={`${journey.length} stages · ${clockAt(journey[0].start)}–${clockAt(
+              journey[journey.length - 1].start + journey[journey.length - 1].hours,
+            )}`}
+            open={routeOpen}
+            onToggle={() => setRouteOpen((v) => !v)}
+          />
 
           {routeOpen && (
             <div style={{ padding: "0 12px 10px" }}>
@@ -2239,6 +2225,63 @@ function RunPopover({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * A section header that opens what is under it.
+ *
+ * The summary on the right is the point: closed, the row still answers the
+ * question its section would — how many stages, which belt and when — so
+ * opening it is for the detail rather than for the gist.
+ */
+function Fold({
+  label,
+  summary,
+  open,
+  onToggle,
+}: {
+  label: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="w-full transition-colors hover:bg-[var(--surface-raised)]"
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "8px 12px",
+        background: "none",
+        cursor: "pointer",
+        textAlign: "left",
+      }}
+    >
+      <span className="type-caption inline-flex items-center" style={{ gap: 5 }}>
+        <CaretDown
+          size={10}
+          weight="bold"
+          style={{
+            color: "var(--ds-text-secondary)",
+            transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+            transition: "transform .15s",
+          }}
+        />
+        <span style={{ color: "var(--ds-text-secondary)" }}>{label}</span>
+      </span>
+      <span
+        className="type-caption"
+        style={{ color: "var(--ds-text-primary)", fontVariantNumeric: "tabular-nums" }}
+      >
+        {summary}
+      </span>
+    </button>
   );
 }
 
