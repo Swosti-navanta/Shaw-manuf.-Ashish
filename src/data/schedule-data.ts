@@ -105,8 +105,12 @@ export const STATIC_BELTS: Record<Exclude<BeltId, "backing">, ReadonlyArray<Run>
   ],
   finishing: [
     { id: "f1", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4471", order: "ORD-77310", orders: 2, accent: "#3F3F47" },
-    { id: "f2", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
-    { id: "f3", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E" },
+    /* Behind its own backing run, which clears BAK-01 at 12:15. */
+    { id: "f2", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207", startAt: 6.5 },
+    /* Pinned behind backing: DL-4479 clears BAK-01 at 15:00, and a roll cannot
+       be sheared before the coat exists. Its upstream card is on the contested
+       belt, so the precedence has to be held from this end. */
+    { id: "f3", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E", startAt: 9 },
   ],
 };
 
@@ -156,10 +160,8 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "TUF-02",
         descriptor: "1/10 gauge · 12 ft",
         runs: [
-          { id: "d-tuf2a", label: "Meridian", family: "meridian", hours: 2.5, yarn: "Y-30918", orders: 1, accent: "#A16207" },
+          { id: "d-tuf2a", label: "Meridian", family: "meridian", hours: 2.5, yarn: "Y-30926", orders: 1, accent: "#A16207" },
           { id: "d-tuf2c", label: "Cascade Twist", family: "cascade", hours: 2.5, yarn: "Y-30902", orders: 1, accent: "#3F3F47" },
-          { id: "d-tuf2d", label: "Dune blend", family: "dune", hours: 2, yarn: "Y-31004", orders: 1, accent: "#0F766E" },
-          { id: "d-tuf2b", label: "Aria Loop", family: "aria", hours: 3, yarn: "Y-30877", orders: 1, accent: "#6B7280", startAt: 9 },
         ],
       },
       {
@@ -167,8 +169,6 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "TUF-03",
         descriptor: "5/64 gauge · 12 ft",
         runs: [
-          { id: "d-tuf3a", label: "Cascade Twist", family: "cascade", hours: 3, yarn: "Y-30918", orders: 2, accent: "#3F3F47" },
-          { id: "d-tuf3b", label: "Aria Loop", family: "aria", hours: 2.5, yarn: "Y-30877", orders: 1, accent: "#6B7280" },
           { id: "d-tuf3c", label: "Meridian", family: "meridian", hours: 2, yarn: "Y-30930", orders: 1, accent: "#A16207" },
         ],
       },
@@ -184,8 +184,11 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "BECK-1",
         descriptor: "batch · shade sequenced",
         runs: [
-          { id: "d-beck1b", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280" },
-          { id: "d-beck1a", label: "Meridian", family: "meridian", hours: 2.5, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
+          { id: "d-beck1a", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
+          { id: "d-beck1b", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280", startAt: 2.25 },
+          /* Lands between tufting clearing at 10:45 and backing starting at
+             13:00 — the beck ahead of it was shortened to make that room,
+             rather than pinning this card and having the pack override it. */
           { id: "d-beck1c", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E" },
         ],
       },
@@ -194,9 +197,9 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "CDR-1",
         descriptor: "continuous range",
         runs: [
-          { id: "d-cdr1b", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77503", accent: "#0F766E" },
+          { id: "d-cdr1b", label: "Cascade Twist", family: "cascade", hours: 2, dyeLot: "DL-4507", order: "ORD-77380", accent: "#3F3F47" },
           { id: "d-cdr1a", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4471", order: "ORD-77310", orders: 2, accent: "#3F3F47" },
-          { id: "d-cdr1c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4492", order: "ORD-77455", accent: "#A16207" },
+          { id: "d-cdr1c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4492", order: "ORD-77455", accent: "#A16207", startAt: 5 },
         ],
       },
     ],
@@ -213,9 +216,9 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "BAK-02",
         descriptor: "precoat + secondary",
         runs: [
-          { id: "d-bak2b", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280" },
-          { id: "d-bak2a", label: "Dune blend", family: "dune", hours: 2.5, dyeLot: "DL-4479", order: "ORD-77503", accent: "#0F766E" },
-          { id: "d-bak2c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
+          { id: "d-bak2b", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280", startAt: 5 },
+          { id: "d-bak2c", label: "Cascade Twist", family: "cascade", hours: 2, dyeLot: "DL-4507", order: "ORD-77380", accent: "#3F3F47", startAt: 7 },
+          { id: "d-bak2d", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4492", order: "ORD-77455", accent: "#A16207", startAt: 9.5 },
         ],
       },
     ],
@@ -231,9 +234,9 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "FIN-02",
         descriptor: "shear · inspect · roll",
         runs: [
-          { id: "d-fin2a", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280" },
-          { id: "d-fin2b", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4471", order: "ORD-77310", accent: "#3F3F47" },
-          { id: "d-fin2c", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E" },
+          { id: "d-fin2a", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280", startAt: 7 },
+          { id: "d-fin2b", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4507", order: "ORD-77380", accent: "#3F3F47", startAt: 9.5 },
+          { id: "d-fin2c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4492", order: "ORD-77455", accent: "#A16207", startAt: 12 },
         ],
       },
     ],
@@ -275,9 +278,9 @@ export const BACKLOG: ReadonlyArray<BacklogItem> = [
     label: "Meridian · Slate 118",
     family: "meridian",
     hours: 2,
-    dyeLot: "DL-4492",
-    yarn: "Y-30930",
-    order: "ORD-77455",
+    dyeLot: "DL-4514",
+    yarn: "Y-30962",
+    order: "ORD-77489",
     customer: "Halloran Contract",
     qty: 740,
     promised: "22 Aug",
@@ -310,7 +313,7 @@ export const BACKLOG: ReadonlyArray<BacklogItem> = [
     family: "aria",
     hours: 3,
     dyeLot: "DL-4501",
-    yarn: "Y-30877",
+    yarn: "Y-30949",
     order: "ORD-77470",
     customer: "Vantage Interiors",
     qty: 1450,
@@ -327,7 +330,7 @@ export const BACKLOG: ReadonlyArray<BacklogItem> = [
     label: "Cascade Twist · Umber 310",
     family: "cascade",
     hours: 2,
-    dyeLot: "DL-4507",
+    dyeLot: "DL-4521",
     order: "ORD-77481",
     customer: "Kestrel Flooring",
     qty: 610,
@@ -359,10 +362,12 @@ export const YARN_FOR_DYE: Record<string, string> = {
   "DL-4463": "Y-30877",
   "DL-4471": "Y-30918",
   "DL-4479": "Y-31004",
-  "DL-4488": "Y-30918",
+  "DL-4488": "Y-30926",
   "DL-4492": "Y-30930",
-  "DL-4501": "Y-30877",
+  "DL-4501": "Y-30949",
   "DL-4507": "Y-30902",
+  "DL-4514": "Y-30962",
+  "DL-4521": "Y-30902",
 };
 
 /**
