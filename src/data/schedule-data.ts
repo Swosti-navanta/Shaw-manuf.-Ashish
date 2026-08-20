@@ -106,7 +106,10 @@ export const STATIC_BELTS: Record<Exclude<BeltId, "backing">, ReadonlyArray<Run>
   finishing: [
     { id: "f1", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4471", order: "ORD-77310", orders: 2, accent: "#3F3F47" },
     { id: "f2", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
-    { id: "f3", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E" },
+    /* Pinned behind backing: DL-4479 clears BAK-01 at 15:00, and a roll cannot
+       be sheared before the coat exists. Its upstream card is on the contested
+       belt, so the precedence has to be held from this end. */
+    { id: "f3", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E", startAt: 9 },
   ],
 };
 
@@ -158,7 +161,6 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         runs: [
           { id: "d-tuf2a", label: "Meridian", family: "meridian", hours: 2.5, yarn: "Y-30918", orders: 1, accent: "#A16207" },
           { id: "d-tuf2c", label: "Cascade Twist", family: "cascade", hours: 2.5, yarn: "Y-30902", orders: 1, accent: "#3F3F47" },
-          { id: "d-tuf2d", label: "Dune blend", family: "dune", hours: 2, yarn: "Y-31004", orders: 1, accent: "#0F766E" },
           { id: "d-tuf2b", label: "Aria Loop", family: "aria", hours: 3, yarn: "Y-30877", orders: 1, accent: "#6B7280", startAt: 9 },
         ],
       },
@@ -185,7 +187,10 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         descriptor: "batch · shade sequenced",
         runs: [
           { id: "d-beck1b", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280" },
-          { id: "d-beck1a", label: "Meridian", family: "meridian", hours: 2.5, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
+          { id: "d-beck1a", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
+          /* Lands between tufting clearing at 10:45 and backing starting at
+             13:00 — the beck ahead of it was shortened to make that room,
+             rather than pinning this card and having the pack override it. */
           { id: "d-beck1c", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E" },
         ],
       },
@@ -194,7 +199,7 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         code: "CDR-1",
         descriptor: "continuous range",
         runs: [
-          { id: "d-cdr1b", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77503", accent: "#0F766E" },
+          { id: "d-cdr1b", label: "Cascade Twist", family: "cascade", hours: 2, dyeLot: "DL-4507", order: "ORD-77380", accent: "#3F3F47" },
           { id: "d-cdr1a", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4471", order: "ORD-77310", orders: 2, accent: "#3F3F47" },
           { id: "d-cdr1c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4492", order: "ORD-77455", accent: "#A16207" },
         ],
@@ -214,7 +219,6 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         descriptor: "precoat + secondary",
         runs: [
           { id: "d-bak2b", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280" },
-          { id: "d-bak2a", label: "Dune blend", family: "dune", hours: 2.5, dyeLot: "DL-4479", order: "ORD-77503", accent: "#0F766E" },
           { id: "d-bak2c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4488", order: "ORD-77412", accent: "#A16207" },
         ],
       },
@@ -233,7 +237,7 @@ export const WORK_CENTRES: ReadonlyArray<WorkCentre> = [
         runs: [
           { id: "d-fin2a", label: "Aria Loop", family: "aria", hours: 2, dyeLot: "DL-4463", order: "ORD-77298", accent: "#6B7280" },
           { id: "d-fin2b", label: "Cascade Twist", family: "cascade", hours: 2.5, dyeLot: "DL-4471", order: "ORD-77310", accent: "#3F3F47" },
-          { id: "d-fin2c", label: "Dune blend", family: "dune", hours: 2, dyeLot: "DL-4479", order: "ORD-77341", accent: "#0F766E" },
+          { id: "d-fin2c", label: "Meridian", family: "meridian", hours: 2, dyeLot: "DL-4492", order: "ORD-77455", accent: "#A16207" },
         ],
       },
     ],
