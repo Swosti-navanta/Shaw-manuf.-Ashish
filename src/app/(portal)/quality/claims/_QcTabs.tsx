@@ -250,7 +250,7 @@ export default function QcTabs() {
       onPageSizeChange={setPageSize}
       isFiltered={activeFilter !== "all"}
       header={
-        <div className="flex flex-col" style={{ gap: 14, padding: "0 16px 14px" }}>
+        <div className="flex flex-col" style={{ gap: 14, padding: "14px 16px" }}>
           {/* On the Claims tab the rule leads — it's the decision the whole
               page builds to. Every other tab opens with Wren's read. */}
           {tab === "claims" ? (
