@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Button,
   DetailPanelShell,
@@ -10,7 +11,7 @@ import {
   SegmentedControl,
   Select,
 } from "@navanta-ai/design-system";
-import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus, X } from "@phosphor-icons/react";
 import { useSchedule } from "@/context/ScheduleContext";
 import {
   BACKLOG,
@@ -29,6 +30,7 @@ import YarnCone from "@/components/ui/YarnCone";
 import RunDeckModal from "./RunDeckModal";
 import RunReviewModal from "./RunReviewModal";
 import { buildWeave, chainFor, type WeaveNode } from "./weave";
+import { scheduleViolations } from "./schedule-rules";
 import {
   backlogRun as baseBacklogRun,
   DAY_BREAKS,
@@ -358,8 +360,31 @@ export default function ScheduleBoard() {
    *  the centre filter are always reflected. */
   const weave = useMemo(() => {
     const nodes: WeaveNode[] = [];
+    /* Proposals count. A suggestion to tuft a draw that is already being
+       tufted on the next machine along is the same mistake as scheduling it
+       there — it just hasn't been accepted yet, which is exactly when it is
+       cheapest to catch. */
+    const proposals: WeaveNode[] = [];
+
     lanes.forEach((lane, laneIdx) => {
       const centreIdx = WORK_CENTRES.findIndex((w) => w.name === lane.centreName);
+      lane.ghosts.forEach((g) => {
+        proposals.push({
+          runId: g.run.id,
+          laneIdx,
+          laneCode: lane.code,
+          centreIdx,
+          centreName: lane.centreName,
+          start: g.start,
+          hours: g.hours,
+          label: g.run.label,
+          family: g.run.family,
+          dyeLot: g.run.dyeLot,
+          yarn: g.run.yarn,
+          order: g.run.order,
+          fixed: g.run.fixed,
+        });
+      });
       lane.layout.placed.forEach((p) => {
         nodes.push({
           runId: p.run.id,
@@ -378,8 +403,36 @@ export default function ScheduleBoard() {
         });
       });
     });
+    /* The rules, checked against what is actually laid out rather than against
+       the fixture — a lane's cards are packed and re-sequenced at render, so
+       the placement the reader sees is the only one worth validating. Dev only:
+       this catches authoring mistakes in the data, and both of the ones it
+       catches were invisible on the board until a lot's whole route was read
+       in one list. */
+    if (process.env.NODE_ENV !== "production") {
+      const bad = scheduleViolations([...nodes, ...proposals]);
+      if (bad.length) {
+        console.error(
+          `Schedule violates ${bad.length} rule${bad.length === 1 ? "" : "s"}:\n` +
+            bad.map((v) => `  · [${v.rule}] ${v.message}`).join("\n"),
+        );
+      }
+    }
+
     return buildWeave(nodes);
   }, [lanes]);
+
+  /* Opening a card lights the material's whole route and dims everything else
+     — the same treatment the search filter uses, because it answers the same
+     question: which of these cards am I looking at? A lot's stages sit on four
+     different lanes, so the board is the only place the route can be seen as a
+     shape rather than read as a list. */
+  const litChain = useMemo(() => {
+    if (!detail) return null;
+    const route = chainFor(detail.runId, weave);
+    const ids = new Set<string>([detail.runId, ...route.map((n) => n.runId)]);
+    return ids.size > 1 ? ids : null;
+  }, [detail, weave]);
 
 
 
@@ -921,10 +974,10 @@ export default function ScheduleBoard() {
 
                 {layout.placed.map((p) => {
                   const isDragging = Boolean(drag?.moved) && drag?.runId === p.run.id;
-                  // Faded when it misses the search — or when a weave is lit
-                  // Dimming is the search filter's alone now that cards no
-                  // longer light a chain on hover.
-                  const dim = !matches(p.run);
+                  // Faded when it misses the search, or when a card is open
+                  // and this one is not part of that material's route.
+                  const dim =
+                    !matches(p.run) || (litChain !== null && !litChain.has(p.run.id));
                   // Only the lanes wired to a process belt take a drag, open a
                   // details card, or split a lot. The rest display their load.
                   if (!belt) {
@@ -1010,6 +1063,7 @@ export default function ScheduleBoard() {
       {detail && !drag && (
         <RunPopover
           runId={detail.runId}
+          anchor={detail.anchor}
           lanes={lanes}
           journey={chainFor(detail.runId, weave)}
           index={beltOrders.backing.indexOf(detail.runId)}
@@ -1676,6 +1730,21 @@ function Bar({
         {label ?? run.label}
         {run.fixed && <span style={{ color: "var(--text-danger)" }}> · fixed</span>}
       </span>
+      {/* The window, on the bar rather than only in its tooltip. A Gantt puts
+          time on the x-axis, but reading a card's start off the axis means
+          tracking a column header several lanes away — and the whole point of
+          a route is that its stages sit on different lanes. */}
+      <span
+        className="truncate"
+        style={{
+          fontSize: 9.5,
+          lineHeight: 1.3,
+          color: "var(--ds-text-placeholder, var(--text-muted))",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {clockAt(start)}–{clockAt(start + hours)}
+      </span>
       {sub && (
         <span
           className="truncate"
@@ -1862,6 +1931,7 @@ function DragTimeChip({
  */
 function RunPopover({
   runId,
+  anchor,
   lanes,
   journey,
   index,
@@ -1872,6 +1942,7 @@ function RunPopover({
   onClose,
 }: {
   runId: string;
+  anchor: DOMRect;
   lanes: ReadonlyArray<{ code: string; centreName: string; constraint: boolean; layout: LaneLayout }>;
   /** Every stage this material passes through, tufting first. */
   journey: ReadonlyArray<WeaveNode>;
@@ -1882,35 +1953,31 @@ function RunPopover({
   onReview: () => void;
   onClose: () => void;
 }) {
-  /* The shell animates off `open`, so it has to be mounted shut for one frame
-     and opened on the next — mounting it already-open puts the transform at
-     its final value with nothing to transition from, which is why it appeared
-     instantly. */
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-
-  /* And closing runs the same slide in reverse before the card unmounts —
-     otherwise the panel snaps out of existence at the end of an animation
-     that was careful about arriving. */
-  const dismiss = useCallback(() => {
-    setShown(false);
-    window.setTimeout(onClose, PANEL_SLIDE_MS);
-  }, [onClose]);
-
-  /* Escape only. The card used to close on scroll and resize because it was
-     pinned under the bar and would drift away from what it described; a panel
-     is docked to the edge, so scrolling the board to look at the belts it
-     names is now the expected thing to do rather than a reason to dismiss it. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") dismiss();
+      if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [dismiss]);
+
+    // Scrolling or resizing moves the bar out from under a fixed card, so the
+    // card goes rather than drifting away from what it describes.
+    //
+    // Registered a frame late on purpose: clicking a bar focuses it, and the
+    // browser scrolls the track container to bring a focused child into view.
+    // That scroll fires in the same tick as the click, so a listener attached
+    // immediately would close the card before it had been seen once.
+    const frame = requestAnimationFrame(() => {
+      window.addEventListener("scroll", onClose, true);
+      window.addEventListener("resize", onClose);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onClose, true);
+      window.removeEventListener("resize", onClose);
+    };
+  }, [onClose]);
 
   const laneIndex = lanes.findIndex((l) => l.layout.placed.some((p) => p.run.id === runId));
   if (laneIndex < 0) return null;
@@ -1957,104 +2024,83 @@ function RunPopover({
     })(),
   ];
 
-  return (
-    <DetailPanelShell
-      open={shown}
-      onClose={dismiss}
-      title={run.label}
-      subtitle={`${lane.code} · ${lane.centreName} · ${clockAt(start)}–${clockAt(start + hours)}`}
-      width={420}
-      footer={
-        <span
-          className="flex items-center justify-between flex-wrap"
-          style={{ gap: 10, width: "100%" }}
-        >
-          {inSequence ? (
-            <span className="inline-flex items-center" style={{ gap: 6 }}>
-              <Button
-                variant="outline"
-                size="sm"
-                iconLeft={<CaretLeft size={12} weight="bold" />}
-                disabled={index <= 0}
-                onClick={() => onMove(-1)}
-              >
-                Earlier
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                iconRight={<CaretRight size={12} weight="bold" />}
-                disabled={index >= orderLength - 1}
-                onClick={() => onMove(1)}
-              >
-                Later
-              </Button>
-            </span>
-          ) : (
-            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-              {run.fixed ? "Pinned to its date" : "Not in the nudgeable sequence"}
-            </span>
-          )}
-          <Button variant="primary" size="sm" onClick={onReview}>
-            Review
-          </Button>
-        </span>
-      }
+  // Fixed and portalled. The track scroller sets `overflow-x: auto`, which
+  // makes the cross axis a clipping context too, so anything drawn inside it
+  // gets its bottom sliced off. A popover has to leave that box entirely.
+  const W = 268;
+  const left = Math.max(12, Math.min(anchor.left, window.innerWidth - W - 12));
+  const below = anchor.bottom + 8;
+  const fitsBelow = below + 220 < window.innerHeight;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={`${run.label} details`}
+      onPointerDown={(e) => e.stopPropagation()}
+      style={{
+        position: "fixed",
+        left,
+        ...(fitsBelow ? { top: below } : { bottom: window.innerHeight - anchor.top + 8 }),
+        zIndex: 1200,
+        width: W,
+        borderRadius: 10,
+        background: "var(--surface-base)",
+        border: "1px solid var(--border-default)",
+        boxShadow: "0 12px 28px rgba(24,24,27,.18)",
+        overflow: "hidden",
+      }}
     >
-      <div className="flex flex-col" style={{ gap: 16 }}>
-        {/* The cone, at the size the board can't give it. On a bar it is a
-            20px tint doing one job — telling two families apart at a glance.
-            Here there is room for it to be the thing itself, and the family
-            it stands for can be named rather than only coloured. */}
-        <span
-          className="flex items-center"
-          style={{
-            gap: 14,
-            padding: "14px 16px",
-            borderRadius: 12,
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border-light)",
-          }}
-        >
-          <YarnCone colour={run.accent} height={56} title={run.label} />
-          <span className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
-            <span className="type-body-medium" style={{ color: "var(--ds-text-primary)" }}>
-              {FAMILY_LABEL[run.family]}
-            </span>
-            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-              {run.yarn ?? run.dyeLot ?? run.label}
-            </span>
+      <div
+        className="flex items-start justify-between"
+        style={{ gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--border-light)" }}
+      >
+        <span className="flex flex-col" style={{ gap: 1, minWidth: 0 }}>
+          <span className="type-body-medium truncate" style={{ color: "var(--ds-text-primary)" }}>
+            {run.label}
+          </span>
+          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+            {run.fixed ? "Fixed install date — can't move" : "Drag to move · grip to widen"}
           </span>
         </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          style={{ background: "none", cursor: "pointer", padding: 2, lineHeight: 0 }}
+        >
+          <X size={13} weight="bold" color="var(--ds-text-secondary)" />
+        </button>
+      </div>
 
-        <div className="flex flex-col">
-          {rows.map((r, i) => (
-            <span
-              key={r.k}
-              className="flex items-baseline justify-between"
-              style={{
-                gap: 12,
-                padding: "8px 0",
-                borderTop: i === 0 ? "none" : "1px solid var(--border-light)",
-              }}
-            >
-              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-                {r.k}
-              </span>
-              <span
-                className="type-body"
-                style={{ color: "var(--ds-text-primary)", textAlign: "right" }}
-              >
-                {r.v}
-              </span>
+      <div className="flex flex-col">
+        {rows.map((r, i) => (
+          <span
+            key={r.k}
+            className="flex items-baseline justify-between"
+            style={{
+              gap: 12,
+              padding: "7px 12px",
+              borderTop: i === 0 ? "none" : "1px solid var(--border-light)",
+            }}
+          >
+            <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+              {r.k}
             </span>
-          ))}
-        </div>
+            <span className="type-caption" style={{ color: "var(--ds-text-primary)", textAlign: "right" }}>
+              {r.v}
+            </span>
+          </span>
+        ))}
+      </div>
 
-        {/* Where this material has been and where it is going.
-            The board draws one card per stage on its own belt, so a lot's route
-            through the plant is only visible by reading four lanes at once. */}
-        {journey.length > 1 && (
+      {/* Where this material has been and where it is going.
+          The board draws one card per stage on its own belt, so a lot's route
+          through the plant is only visible by reading four lanes at once. The
+          stages are the same genealogy the hover overlay used to draw as lines
+          across the board — read here instead, where each one can carry its
+          belt and its clock rather than needing to be hovered to exist. */}
+      {journey.length > 1 && (
+        <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border-light)" }}>
           <PanelTimeline
             title="Through the plant"
             idPrefix={`run-${run.id}`}
@@ -2074,9 +2120,45 @@ function RunPopover({
               events: [],
             }))}
           />
+        </div>
+      )}
+
+      <div
+        className="flex items-center justify-between flex-wrap"
+        style={{ gap: 8, padding: "9px 12px", borderTop: "1px solid var(--border-light)" }}
+      >
+        {inSequence && !run.fixed ? (
+          <span className="inline-flex items-center" style={{ gap: 6 }}>
+            <Button
+              variant="outline"
+              size="sm"
+              iconLeft={<CaretLeft size={12} weight="bold" />}
+              disabled={index <= 0}
+              onClick={() => onMove(-1)}
+            >
+              Earlier
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              iconRight={<CaretRight size={12} weight="bold" />}
+              disabled={index >= orderLength - 1}
+              onClick={() => onMove(1)}
+            >
+              Later
+            </Button>
+          </span>
+        ) : (
+          <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+            {run.fixed ? "Pinned to its date" : "Not in the nudgeable sequence"}
+          </span>
         )}
+        <Button variant="primary" size="sm" onClick={onReview}>
+          Review
+        </Button>
       </div>
-    </DetailPanelShell>
+    </div>,
+    document.body,
   );
 }
 
