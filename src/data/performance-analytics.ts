@@ -463,3 +463,133 @@ export const OT_BY_EMPLOYEE: ReadonlyArray<EmployeeRow> = [
   { id: "E-10912", process: "Tufting", reg: "40", ot: "14.2", rate: "$30.10", otWk: "$641" },
   { id: "E-11402", process: "Coating", reg: "40", ot: "6.0", rate: "$28.90", otWk: "$260" },
 ];
+
+/* ── The Overall read's causal chain and decomposition ─────────────────────
+ *
+ * The chain is the join a ledger can't make. Four systems, left to right,
+ * ending in money: the plan miss is measured in MES, the recovery is booked in
+ * the roster, and only the last two nodes are financial. Naming the source on
+ * each node is the point — it is the difference between "overtime is over
+ * budget" and "we missed plan, so we bought the hours back, and here is the
+ * bill".
+ *
+ * Everything below is derived from the built period rather than authored twice,
+ * so changing the four-week window moves the chain and the bars with the table.
+ */
+
+export interface ChainNode {
+  /** The system of record the figure comes from. */
+  src: string;
+  value: string;
+  label: string;
+  tone: "warn" | "hot";
+}
+
+/** Attainment and the hours bought to recover it, per period. */
+const PLAN_MISS: Record<Period, { attainment: string; hours: string }> = {
+  P12: { attainment: "94.1%", hours: "+180h" },
+  P13: { attainment: "91.3%", hours: "+412h" },
+  P14: { attainment: "92.6%", hours: "+265h" },
+};
+
+export function povaChain(period: string, build: PovaBuild): ReadonlyArray<ChainNode> {
+  const p = isPeriod(period) ? period : "P13";
+  const miss = PLAN_MISS[p];
+  const ot = build.rows.find((r) => r.category === "Overtime");
+  return [
+    { src: "MES", value: miss.attainment, label: "attainment vs 95% plan", tone: "warn" },
+    { src: "Roster", value: miss.hours, label: "overtime booked to recover", tone: "warn" },
+    { src: "TM1", value: ot?.variance ?? "—", label: "Overtime over budget", tone: "hot" },
+    { src: "TM1", value: build.summary.totalVariance, label: "total operating variance", tone: "hot" },
+  ];
+}
+
+export function povaChainRead(period: string, build: PovaBuild): string {
+  const p = isPeriod(period) ? period : "P13";
+  const ot = build.rows.find((r) => r.category === "Overtime");
+  return `attainment sat at ${PLAN_MISS[p].attainment} against a 95% plan, crews booked ${PLAN_MISS[p].hours.replace("+", "")} of overtime to recover it, and that lands as a ${ot?.variance ?? "—"} Overtime line inside ${build.summary.totalVariance} of total variance. The plan miss and the overtime are one story, not two cards.`;
+}
+
+/* ── Decomposition ───────────────────────────────────────────────────────── */
+
+export type PovaLens = "category" | "plant" | "cc";
+
+export const POVA_LENSES: ReadonlyArray<{ id: PovaLens; label: string }> = [
+  { id: "category", label: "By category" },
+  { id: "plant", label: "By plant" },
+  { id: "cc", label: "By cost centre" },
+];
+
+export interface LensRow {
+  label: string;
+  sub?: string;
+  /** Share of the largest row, for the bar. */
+  pct: number;
+  value: string;
+  tone: "hot" | "warn" | "ok";
+}
+
+/** What each category actually is, in the floor's words rather than the
+ *  ledger's. "Production efficiency" is a GL line; "rate loss" is the thing. */
+const CATEGORY_SUB: Record<string, string> = {
+  "Production efficiency": "rate loss",
+  Overtime: "recovery hours",
+  "Waste and scrap": "delam, 6-ft",
+  "Maintenance spending": "unplanned WOs",
+  "Raw material usage": "yarn draw",
+  "Labor performance": "crew vs standard",
+};
+
+/** Cost centres, $k over budget at P13. Scaled per period like everything else. */
+const CC_BASE: ReadonlyArray<{ label: string; sub: string; v: number }> = [
+  { label: "500209 · Warp", sub: "primary", v: 28 },
+  { label: "500184 · Warp", sub: "secondary", v: 19 },
+  { label: "500184 · Tuft", sub: "", v: 16 },
+  { label: "500209 · Coat", sub: "", v: -4 },
+];
+
+const CC_PERIOD: Record<Period, number> = { P12: 0.86, P13: 1, P14: 1.04 };
+
+/** One money, three slices. The bars answer "where is it concentrated"; the
+ *  table underneath answers "what were the actual and budget figures". */
+export function povaLens(lens: PovaLens, period: string, build: PovaBuild): ReadonlyArray<LensRow> {
+  if (lens === "category") {
+    const rows = build.rows
+      .map((r) => ({ r, mag: Math.abs(parseFloat(r.variance.replace(/[^0-9.]/g, "")) || 0) }))
+      .sort((a, b) => b.mag - a.mag)
+      .slice(0, 5);
+    const top = rows[0]?.mag || 1;
+    return rows.map(({ r, mag }) => ({
+      label: r.category,
+      sub: CATEGORY_SUB[r.category],
+      pct: Math.max(6, Math.round((mag / top) * 100)),
+      value: r.variance,
+      tone: !r.unfavorable ? "ok" : mag / top > 0.7 ? "hot" : "warn",
+    }));
+  }
+
+  if (lens === "plant") {
+    const rows = build.byPlant.map((p) => ({
+      p,
+      mag: Math.abs(parseFloat(p.value.replace(/[^0-9.]/g, "")) || 0),
+    }));
+    const top = rows[0]?.mag || 1;
+    return rows.map(({ p, mag }) => ({
+      label: p.plant,
+      pct: Math.max(6, Math.round((mag / top) * 100)),
+      value: p.value,
+      tone: p.hot ? "hot" : p.unfavorable ? "warn" : "ok",
+    }));
+  }
+
+  const p = isPeriod(period) ? period : "P13";
+  const scaled = CC_BASE.map((c) => ({ ...c, v: c.v * CC_PERIOD[p] }));
+  const top = Math.max(...scaled.map((c) => Math.abs(c.v))) || 1;
+  return scaled.map((c) => ({
+    label: c.label,
+    sub: c.sub || undefined,
+    pct: Math.max(6, Math.round((Math.abs(c.v) / top) * 100)),
+    value: `$${Math.abs(Math.round(c.v))}k ${c.v < 0 ? "F" : "U"}`,
+    tone: c.v < 0 ? "ok" : Math.abs(c.v) / top > 0.7 ? "hot" : "warn",
+  }));
+}

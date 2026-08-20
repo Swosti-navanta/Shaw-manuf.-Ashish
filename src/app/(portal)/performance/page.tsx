@@ -28,6 +28,7 @@ import {
 } from "@/data/performance-analytics";
 import LaborAnalysis from "./_components/LaborAnalysis";
 import AttentionBand from "./_components/AttentionBand";
+import PovaAnalysis from "./_components/PovaAnalysis";
 import LineHealth from "./_components/LineHealth";
 
 type View = "exec" | "mfg" | "machine" | "labor";
@@ -219,6 +220,8 @@ export default function PerformancePage() {
           {/* THE POVA TABLE — the core artifact. Eight rows in SOP order,
               unfavorable first; every row names its factor codes and the one
               view that answers its "why". */}
+          <PovaAnalysis period={period} build={pova} />
+
           <Panel
             title={`Plant operating variance · actual ${comparisonLabel}`}
             scope={`${periodMeta.label} · ${comparisonLabel} · click a row for the breakdown`}
@@ -234,28 +237,9 @@ export default function PerformancePage() {
           </Panel>
 
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "stretch" }}>
-            <Panel title={`Variance ${comparisonLabel} · by plant`} scope={`${periodMeta.label} · worst first`}>
-              <div className="flex flex-col" style={{ gap: 8 }}>
-                {pova.byPlant.map((p) => (
-                  <div key={p.plant} className="flex items-center justify-between" style={{ gap: 12 }}>
-                    <span className="type-body" style={{ color: "var(--ds-text-primary)" }}>{p.plant}</span>
-                    <span
-                      className="type-body-medium"
-                      style={{
-                        fontVariantNumeric: "tabular-nums",
-                        color: p.hot
-                          ? "var(--text-danger)"
-                          : p.unfavorable
-                            ? "var(--ds-text-primary)"
-                            : "var(--text-success)",
-                      }}
-                    >
-                      {p.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Panel>
+            {/* The by-plant list used to sit here as its own panel. It is a
+                lens on the decomposition above now — the same figures in two
+                places is the thing that drifts. */}
             {/* Forward exposure — a different clock from POVA's backward spend,
                 so it supports the table rather than sitting beside it as a peer. */}
             <Panel title="Margin at risk · forward exposure" scope="supporting context · from TM1">
