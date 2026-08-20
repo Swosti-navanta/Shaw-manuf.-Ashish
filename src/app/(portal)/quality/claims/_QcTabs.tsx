@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AiStar, Button, TableShell } from "@navanta-ai/design-system";
+import { AiStar, Button, Chip, TableShell, Tabs } from "@navanta-ai/design-system";
 import { ArrowRight } from "@phosphor-icons/react";
 import DrillLink from "@/components/ui/DrillLink";
 import { TRACE_CHAIN } from "@/types/quality";
@@ -209,37 +209,6 @@ export default function QcTabs() {
   return (
     <TableShell
       title="Quality checks"
-      /* The four books of QC as saved views, with their populations on the
-         badges. TableShell renders its filter row ABOVE the tabs, so the
-         watch/flag chips no longer sit inline with them — the trade for
-         getting the DS's chrome, tab semantics and footer instead of a
-         hand-rolled card that reimplemented all three. */
-      tabs={[
-        { id: "yarn", label: "Yarn QC", badge: 42 },
-        { id: "dye", label: "Dye-lot QC", badge: 3, tone: "critical" },
-        { id: "order", label: "Final-order QC", badge: 28 },
-        { id: "claims", label: "Claims", badge: 3, tone: "critical" },
-      ]}
-      activeTab={tab}
-      onTabChange={(id) => {
-        setTab(id as TabId);
-        setFilter("all");
-        reset();
-      }}
-      filterChips={
-        chips?.map((ch) => ({
-          key: ch.f,
-          label: ch.label,
-          count: ch.count,
-          active: activeFilter === ch.f,
-          onToggle: () => {
-            /* Clicking the active chip clears back to All rather than being
-               inert — a selected toggle that does nothing reads as broken. */
-            setFilter(activeFilter === ch.f ? "all" : ch.f);
-            reset();
-          },
-        })) ?? []
-      }
       /* Nothing here is column-configurable: every tab is a different table
          with its own fixed shape. */
       customize={false}
@@ -250,6 +219,54 @@ export default function QcTabs() {
       onPageSizeChange={setPageSize}
       isFiltered={activeFilter !== "all"}
       header={
+        <>
+          {/* The tab row lives in the header slot rather than in TableShell's
+              own `tabs` prop, for one reason: TableShell renders its filter
+              chips on a separate row ABOVE the tabs and hands `Tabs` no
+              rightSlot, so watch/flag could not sit beside the tab labels.
+              The DS `Tabs` component does take a rightSlot — so the shell
+              keeps the chrome and the footer, and the tab row is composed
+              here where the chips can ride on its right edge. */}
+          <div style={{ padding: "0 16px", borderBottom: "1px solid var(--border-light)" }}>
+            <Tabs
+              variant="underline-pill"
+              tabs={[
+                { id: "yarn", label: "Yarn QC", badge: 42 },
+                { id: "dye", label: "Dye-lot QC", badge: 3, tone: "critical" },
+                { id: "order", label: "Final-order QC", badge: 28 },
+                { id: "claims", label: "Claims", badge: 3, tone: "critical" },
+              ]}
+              activeTab={tab}
+              onChange={(id) => {
+                setTab(id as TabId);
+                setFilter("all");
+                reset();
+              }}
+              rightSlot={
+                chips && chips.length ? (
+                  <span className="inline-flex items-center" style={{ gap: 6 }}>
+                    {chips.map((ch) => (
+                      <Chip
+                        key={ch.f}
+                        selected={activeFilter === ch.f}
+                        count={ch.count}
+                        onClick={() => {
+                          /* Clicking the active chip clears back to All rather
+                             than being inert — a selected toggle that does
+                             nothing reads as broken. */
+                          setFilter(activeFilter === ch.f ? "all" : ch.f);
+                          reset();
+                        }}
+                      >
+                        {ch.label}
+                      </Chip>
+                    ))}
+                  </span>
+                ) : undefined
+              }
+            />
+          </div>
+
         <div className="flex flex-col" style={{ gap: 14, padding: "14px 16px" }}>
           {/* On the Claims tab the rule leads — it's the decision the whole
               page builds to. Every other tab opens with Wren's read. */}
@@ -317,6 +334,7 @@ export default function QcTabs() {
             </>
           )}
         </div>
+        </>
       }
     >
       <div style={{ padding: "0 16px" }}>
