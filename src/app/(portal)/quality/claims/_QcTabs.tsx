@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AiStar, Button, Chip, Tabs } from "@navanta-ai/design-system";
-import { ArrowRight, CaretDown } from "@phosphor-icons/react";
+import { AiStar, Button, TableShell } from "@navanta-ai/design-system";
+import { ArrowRight } from "@phosphor-icons/react";
 import DrillLink from "@/components/ui/DrillLink";
 import { TRACE_CHAIN } from "@/types/quality";
 import { RuleBand } from "./_ClaimsInsight";
@@ -174,154 +174,158 @@ const FILTERS: Record<Exclude<TabId, "claims">, { f: Filter; label: string; coun
 
 /** The full population each tab samples from — the demo carries 6 rows, but the
  *  count is the real inventory, so the table reads "6 of 42" and expands. */
-const TOTALS: Record<Exclude<TabId, "claims">, number> = { yarn: 42, dye: 31, order: 28 };
 /** How many rows show before the table is expanded. */
-const COLLAPSED = 4;
+/* What each tab's numbers rest on. These used to sit in a per-table footer,
+   which TableShell owns now — so they move up beside Wren's read, where the
+   rest of the tab's framing already is. */
+const NOTES: Record<Exclude<TabId, "claims">, string> = {
+  yarn: "heat-set, twist, denier and shade checked on every lot",
+  dye: "off-shade lots are split across two dye runs — the shared cause behind Claims",
+  order: "graded at the roll, before it is cut and shipped",
+};
 
 export default function QcTabs() {
   const [tab, setTab] = useState<TabId>("yarn");
   const [filter, setFilter] = useState<Filter>("all");
-  const [expanded, setExpanded] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const chips = tab === "claims" ? null : FILTERS[tab];
   const activeFilter = chips?.some((ch) => ch.f === filter) ? filter : "all";
 
-  const rightSlot =
-    chips && chips.length ? (
-      <span className="inline-flex items-center" style={{ gap: 6 }}>
-        {chips.map((ch) => (
-          <Chip
-            key={ch.f}
-            selected={activeFilter === ch.f}
-            count={ch.count}
-            onClick={() => {
-            setFilter(ch.f);
-            setExpanded(false);
-          }}
-          >
-            {ch.label}
-          </Chip>
-        ))}
-      </span>
-    ) : undefined;
+  const rows =
+    tab === "yarn"
+      ? YARN.filter((r) => activeFilter === "all" || r.s === activeFilter)
+      : tab === "dye"
+        ? DYE.filter((r) => activeFilter === "all" || r.s === activeFilter)
+        : tab === "order"
+          ? ORDER.filter((r) => activeFilter === "all" || r.s === activeFilter)
+          : CLAIMS;
+
+  const reset = () => {
+    setPage(1);
+  };
 
   return (
-    <section
-      style={{
-        background: "var(--surface-base)",
-        border: "1px solid var(--border-default)",
-        borderRadius: 14,
-        boxShadow: "0 1px 2px rgba(24, 24, 27, 0.07)",
-        overflow: "hidden",
+    <TableShell
+      title="Quality checks"
+      /* The four books of QC as saved views, with their populations on the
+         badges. TableShell renders its filter row ABOVE the tabs, so the
+         watch/flag chips no longer sit inline with them — the trade for
+         getting the DS's chrome, tab semantics and footer instead of a
+         hand-rolled card that reimplemented all three. */
+      tabs={[
+        { id: "yarn", label: "Yarn QC", badge: 42 },
+        { id: "dye", label: "Dye-lot QC", badge: 3, tone: "critical" },
+        { id: "order", label: "Final-order QC", badge: 28 },
+        { id: "claims", label: "Claims", badge: 3, tone: "critical" },
+      ]}
+      activeTab={tab}
+      onTabChange={(id) => {
+        setTab(id as TabId);
+        setFilter("all");
+        reset();
       }}
-    >
-      <div style={{ padding: "8px 16px 0" }}>
-        <Tabs
-          variant="underline-pill"
-          tabs={[
-            { id: "yarn", label: "Yarn QC", badge: 42 },
-            { id: "dye", label: "Dye-lot QC", badge: 3, tone: "critical" },
-            { id: "order", label: "Final-order QC", badge: 28 },
-            { id: "claims", label: "Claims", badge: 3, tone: "critical" },
-          ]}
-          activeTab={tab}
-          onChange={(id) => {
-            setTab(id as TabId);
-            setFilter("all");
-            setExpanded(false);
-          }}
-          rightSlot={rightSlot}
-        />
-      </div>
-
-      <div className="flex flex-col" style={{ padding: 16, gap: 14 }}>
-        {/* On the Claims tab the rule leads — it's the decision the whole page
-            builds to. Every other tab opens with Wren's read. */}
-        {tab === "claims" ? (
-          <RuleBand />
-        ) : (
-          <div
-            className="flex items-start"
-            style={{
-              gap: 9,
-              padding: "12px 14px",
-              borderRadius: 10,
-              background: "var(--color-iris-50)",
-              border: "1px solid var(--color-iris-200)",
-            }}
-          >
-            <AiStar size={15} style={{ marginTop: 1, flexShrink: 0 }} />
-            <span className="type-body" style={{ color: "var(--ds-text-secondary)", lineHeight: 1.55 }}>
-              {READS[tab]}
-            </span>
-          </div>
-        )}
-
-        {/* Summary stats — the Claims tab carries its numbers in the genealogy
-            and claims table instead, so it skips this row. */}
-        {tab !== "claims" && (
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}
-        >
-          {SUMS[tab].map((sm) => (
-            <div
-              key={sm.k}
-              className="flex flex-col"
-              style={{
-                gap: 3,
-                padding: "10px 12px",
-                borderRadius: 10,
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border-default)",
-              }}
-            >
-              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-                {sm.k}
-              </span>
-              <span
-                className="type-body-medium"
+      filterChips={
+        chips?.map((ch) => ({
+          key: ch.f,
+          label: ch.label,
+          count: ch.count,
+          active: activeFilter === ch.f,
+          onToggle: () => {
+            /* Clicking the active chip clears back to All rather than being
+               inert — a selected toggle that does nothing reads as broken. */
+            setFilter(activeFilter === ch.f ? "all" : ch.f);
+            reset();
+          },
+        })) ?? []
+      }
+      /* Nothing here is column-configurable: every tab is a different table
+         with its own fixed shape. */
+      customize={false}
+      totalItems={rows.length}
+      currentPage={page}
+      onPageChange={setPage}
+      pageSize={pageSize}
+      onPageSizeChange={setPageSize}
+      isFiltered={activeFilter !== "all"}
+      header={
+        <div className="flex flex-col" style={{ gap: 14, padding: "0 16px 14px" }}>
+          {/* On the Claims tab the rule leads — it's the decision the whole
+              page builds to. Every other tab opens with Wren's read. */}
+          {tab === "claims" ? (
+            <RuleBand />
+          ) : (
+            <>
+              <div
+                className="flex items-start"
                 style={{
-                  fontSize: 18,
-                  color: sm.tone ? TONE_INK[sm.tone] : "var(--ds-text-primary)",
-                  fontVariantNumeric: "tabular-nums",
+                  gap: 9,
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  background: "var(--color-iris-50)",
+                  border: "1px solid var(--color-iris-200)",
                 }}
               >
-                {sm.v}
-              </span>
-            </div>
-          ))}
-        </div>
-        )}
+                <AiStar size={15} style={{ marginTop: 1, flexShrink: 0 }} />
+                <span
+                  className="type-body"
+                  style={{ color: "var(--ds-text-secondary)", lineHeight: 1.55 }}
+                >
+                  {READS[tab]}
+                </span>
+              </div>
 
-        {/* The table for the active tab. */}
-        {tab === "yarn" && (
-          <YarnTable
-            rows={YARN.filter((r) => activeFilter === "all" || r.s === activeFilter)}
-            total={TOTALS.yarn}
-            expanded={expanded}
-            onToggle={() => setExpanded((v) => !v)}
-          />
-        )}
-        {tab === "dye" && (
-          <DyeTable
-            rows={DYE.filter((r) => activeFilter === "all" || r.s === activeFilter)}
-            total={TOTALS.dye}
-            expanded={expanded}
-            onToggle={() => setExpanded((v) => !v)}
-          />
-        )}
-        {tab === "order" && (
-          <OrderTable
-            rows={ORDER.filter((r) => activeFilter === "all" || r.s === activeFilter)}
-            total={TOTALS.order}
-            expanded={expanded}
-            onToggle={() => setExpanded((v) => !v)}
-          />
-        )}
+              {/* Summary stats — the Claims tab carries its numbers in the
+                  genealogy and claims table instead, so it skips this row. */}
+              <div
+                className="grid"
+                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}
+              >
+                {SUMS[tab].map((sm) => (
+                  <div
+                    key={sm.k}
+                    className="flex flex-col"
+                    style={{
+                      gap: 3,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      background: "var(--surface-raised)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                      {sm.k}
+                    </span>
+                    <span
+                      className="type-body-medium"
+                      style={{
+                        fontSize: 18,
+                        color: sm.tone ? TONE_INK[sm.tone] : "var(--ds-text-primary)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {sm.v}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
+                {NOTES[tab]}
+              </span>
+            </>
+          )}
+        </div>
+      }
+    >
+      <div style={{ padding: "0 16px" }}>
+        {tab === "yarn" && <YarnTable rows={rows as YarnRow[]} />}
+        {tab === "dye" && <DyeTable rows={rows as DyeRow[]} />}
+        {tab === "order" && <OrderTable rows={rows as OrderRow[]} />}
         {tab === "claims" && <ClaimsTable />}
       </div>
-    </section>
+    </TableShell>
   );
 }
 
@@ -440,79 +444,16 @@ function Row({ children, flag }: { children: React.ReactNode; flag?: boolean }) 
 
 const TD: React.CSSProperties = { padding: "11px 12px", verticalAlign: "middle" };
 
-function Foot({
-  shown,
-  total,
-  note,
-  link,
-  expanded,
-  onToggle,
-}: {
-  shown: number;
-  total: number;
-  note: string;
-  link: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const canExpand = total > COLLAPSED;
-  return (
-    <div
-      className="flex items-center justify-between flex-wrap"
-      style={{ gap: 12, paddingTop: 12, marginTop: 4, borderTop: "1px solid var(--border-default)" }}
-    >
-      <span className="type-caption" style={{ color: "var(--ds-text-secondary)" }}>
-        Showing {shown} of {total} · {note}
-      </span>
-      <span className="inline-flex items-center" style={{ gap: 6 }}>
-        {canExpand && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggle}
-            iconRight={
-              <CaretDown
-                size={13}
-                weight="bold"
-                style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .15s" }}
-              />
-            }
-          >
-            {expanded ? "Show fewer" : `Show all ${total}`}
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" iconRight={<ArrowRight size={13} weight="bold" />}>
-          {link}
-        </Button>
-      </span>
-    </div>
-  );
-}
-
-/* ── Tables ─────────────────────────────────────────────────────────────── */
-
+/* Rows only. Counting, paging and the "N of M" line belong to TableShell now. */
 interface TableProps<T> {
   rows: T[];
-  total: number;
-  expanded: boolean;
-  onToggle: () => void;
 }
 
-function YarnTable({ rows, total, expanded, onToggle }: TableProps<YarnRow>) {
-  const shown = expanded ? rows : rows.slice(0, COLLAPSED);
+function YarnTable({ rows }: TableProps<YarnRow>) {
+  const shown = rows;
   return (
     <Shell
       head={["Yarn lot", "Checked", "Result", "Serves", "Status", ""]}
-      foot={
-        <Foot
-          shown={shown.length}
-          total={total}
-          expanded={expanded}
-          onToggle={onToggle}
-          note="heat-set, twist, denier and shade checked on every lot"
-          link="Open the yarn grading queue"
-        />
-      }
     >
       {shown.map((r) => (
         <Row key={r.id}>
@@ -528,21 +469,11 @@ function YarnTable({ rows, total, expanded, onToggle }: TableProps<YarnRow>) {
   );
 }
 
-function DyeTable({ rows, total, expanded, onToggle }: TableProps<DyeRow>) {
-  const shown = expanded ? rows : rows.slice(0, COLLAPSED);
+function DyeTable({ rows }: TableProps<DyeRow>) {
+  const shown = rows;
   return (
     <Shell
       head={["Dye lot", "Shade ΔE", "Fastness / level", "Result", "Whole?", "Status", ""]}
-      foot={
-        <Foot
-          shown={shown.length}
-          total={total}
-          expanded={expanded}
-          onToggle={onToggle}
-          note="off-shade lots are split across two dye runs — the shared cause behind Claims"
-          link="Open the dye grading queue"
-        />
-      }
     >
       {shown.map((r) => (
         <Row key={r.id} flag={r.s === "flag"}>
@@ -559,21 +490,11 @@ function DyeTable({ rows, total, expanded, onToggle }: TableProps<DyeRow>) {
   );
 }
 
-function OrderTable({ rows, total, expanded, onToggle }: TableProps<OrderRow>) {
-  const shown = expanded ? rows : rows.slice(0, COLLAPSED);
+function OrderTable({ rows }: TableProps<OrderRow>) {
+  const shown = rows;
   return (
     <Shell
       head={["Order", "Roll grade", "Defects / yd²", "Where", "Traced to run", "Status", ""]}
-      foot={
-        <Foot
-          shown={shown.length}
-          total={total}
-          expanded={expanded}
-          onToggle={onToggle}
-          note="every roll graded and linked to the run that produced it"
-          link="Open the grading queue"
-        />
-      }
     >
       {shown.map((r) => (
         <Row key={r.id}>
