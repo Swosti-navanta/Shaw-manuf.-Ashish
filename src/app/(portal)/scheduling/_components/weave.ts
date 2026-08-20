@@ -148,3 +148,40 @@ export const WEAVE_KIND_META: Record<
   "lot-split": { label: "Lot across orders", stroke: "var(--text-warning, #F79009)" },
   yarn: { label: "Built from draw", stroke: "var(--border-strong, #9F9FA9)", dash: "5 4" },
 };
+
+/**
+ * The whole journey one piece of material makes, as an ordered list of stages.
+ *
+ * The links already say which two cards are the same material at consecutive
+ * stages; this walks that relation in both directions from the card you
+ * clicked and flattens it into tufting → dyeing → backing → finishing. It is
+ * the same genealogy the overlay used to draw across the board — read in a
+ * detail view, where you can name each stage and its clock, rather than as
+ * lines over cards that have to be hovered to be seen.
+ */
+export function chainFor(runId: string, weave: Weave): ReadonlyArray<WeaveNode> {
+  const seen = new Map<string, WeaveNode>();
+  const queue = [runId];
+
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const link of weave.byRun.get(id) ?? []) {
+      for (const node of [link.from, link.to]) {
+        if (!seen.has(node.runId)) {
+          seen.set(node.runId, node);
+          queue.push(node.runId);
+        }
+      }
+    }
+  }
+
+  /* One card per work centre — a lot serving two orders puts two cards on the
+     same centre, and the journey is the stages, not every card on them. */
+  const byCentre = new Map<number, WeaveNode>();
+  for (const n of seen.values()) {
+    const held = byCentre.get(n.centreIdx);
+    if (!held || n.start < held.start) byCentre.set(n.centreIdx, n);
+  }
+
+  return [...byCentre.values()].sort((a, b) => a.centreIdx - b.centreIdx);
+}

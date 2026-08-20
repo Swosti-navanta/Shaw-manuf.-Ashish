@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button, Input, Progress, SegmentedControl, Select } from "@navanta-ai/design-system";
+import { Button, Input, PanelTimeline, Progress, SegmentedControl, Select } from "@navanta-ai/design-system";
 import { CaretLeft, CaretRight, MagnifyingGlass, PencilSimple, Plus, X } from "@phosphor-icons/react";
 import { useSchedule } from "@/context/ScheduleContext";
 import {
@@ -21,8 +21,7 @@ import DrillLink from "@/components/ui/DrillLink";
 import YarnCone from "@/components/ui/YarnCone";
 import RunDeckModal from "./RunDeckModal";
 import RunReviewModal from "./RunReviewModal";
-import WeaveOverlay, { type WeavePin } from "./WeaveOverlay";
-import { buildWeave, type WeaveNode } from "./weave";
+import { buildWeave, chainFor, type WeaveNode } from "./weave";
 import {
   backlogRun as baseBacklogRun,
   DAY_BREAKS,
@@ -212,9 +211,6 @@ export default function ScheduleBoard() {
   const [centre, setCentre] = useState<string>("all");
   /** Free text that dims the runs it does not match. */
   const [query, setQuery] = useState("");
-  /** The run whose weave (material connections) is lit, and the pinned line. */
-  const [weaveSrc, setWeaveSrc] = useState<string | null>(null);
-  const [weavePin, setWeavePin] = useState<WeavePin | null>(null);
   /** Grace timer so the pointer can travel from a card onto one of its lines
    *  without the weave vanishing under it. */
   const weaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -376,65 +372,8 @@ export default function ScheduleBoard() {
     return buildWeave(nodes);
   }, [lanes]);
 
-  /** The links to draw: rooted at the pin's source while pinned, else at the
-   *  hovered card. */
-  const weaveRoot = weavePin?.src ?? weaveSrc;
-  const weaveLinks = useMemo(
-    () => (weaveRoot ? (weave.byRun.get(weaveRoot) ?? []) : []),
-    [weave, weaveRoot],
-  );
-  /** Cards in the lit chain — everything else dims while the weave is up. */
-  const weaveSet = useMemo(() => {
-    if (!weaveLinks.length) return null;
-    const s = new Set<string>();
-    weaveLinks.forEach((l) => {
-      s.add(l.from.runId);
-      s.add(l.to.runId);
-    });
-    return s;
-  }, [weaveLinks]);
 
-  const cancelWeaveClear = () => {
-    if (weaveTimer.current) {
-      clearTimeout(weaveTimer.current);
-      weaveTimer.current = null;
-    }
-  };
-  const scheduleWeaveClear = () => {
-    cancelWeaveClear();
-    weaveTimer.current = setTimeout(() => setWeaveSrc(null), 260);
-  };
 
-  /** Delegated hover: a card with connections roots the weave; a line (or the
-   *  pinned card) keeps it alive; anything else lets it fade after a grace. */
-  const onWeaveOver = (e: React.PointerEvent) => {
-    if (dragRef.current) return;
-    const el = e.target as Element;
-    if (el.closest("[data-weave-keep]")) {
-      cancelWeaveClear();
-      return;
-    }
-    const bar = el.closest("[data-weave-run]") as HTMLElement | null;
-    const id = bar?.dataset.weaveRun;
-    if (id && weave.byRun.has(id)) {
-      cancelWeaveClear();
-      setWeaveSrc(id);
-      return;
-    }
-    scheduleWeaveClear();
-  };
-
-  // Escape drops the pinned connection; the timer dies with the board.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setWeavePin(null);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      if (weaveTimer.current) clearTimeout(weaveTimer.current);
-    };
-  }, []);
 
   /** Pointer position → the hour under it and the lane it is over. Measured
    *  off the track element, whose rect already accounts for scrollLeft. */
@@ -754,14 +693,11 @@ export default function ScheduleBoard() {
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
-            onPointerOver={onWeaveOver}
-            onPointerLeave={scheduleWeaveClear}
             onPointerDownCapture={(e) => {
               // Anything that isn't a bar dismisses the card; anything that
               // isn't a weave line or its info card unpins the weave.
               const el = e.target as Element;
               if (!el.closest("button")) setDetail(null);
-              if (!el.closest("[data-weave-keep]")) setWeavePin(null);
             }}
             style={{ width: trackWidth, touchAction: drag ? "none" : undefined }}
           >
@@ -977,9 +913,9 @@ export default function ScheduleBoard() {
                 {layout.placed.map((p) => {
                   const isDragging = Boolean(drag?.moved) && drag?.runId === p.run.id;
                   // Faded when it misses the search — or when a weave is lit
-                  // and this card isn't part of the chain.
-                  const dim =
-                    !matches(p.run) || (weaveSet !== null && !weaveSet.has(p.run.id));
+                  // Dimming is the search filter's alone now that cards no
+                  // longer light a chain on hover.
+                  const dim = !matches(p.run);
                   // Only the lanes wired to a process belt take a drag, open a
                   // details card, or split a lot. The rest display their load.
                   if (!belt) {
@@ -1046,22 +982,6 @@ export default function ScheduleBoard() {
                 the track layer so a line can cross lanes without being clipped
                 by them. Hidden while dragging: two overlays talking about the
                 same card at once is noise. */}
-            {!drag?.moved && (
-              <WeaveOverlay
-                links={weaveLinks}
-                laneTop={laneTop}
-                axisH={AXIS_H}
-                trackH={TRACK_H}
-                trackInset={TRACK_INSET}
-                trackWidth={trackWidth}
-                pin={weavePin}
-                // Pin keeps the weave rooted where it was when the line was
-                // clicked — re-rooting at the line's far end would redraw the
-                // picture under the very click that tried to hold it still.
-                onPin={(p) => setWeavePin({ ...p, src: weaveRoot ?? p.src })}
-                onUnpin={() => setWeavePin(null)}
-              />
-            )}
 
             {/* The time readout rides above the bar being dragged. It lives
                 here rather than inside the bar because a lane clips its own
@@ -1083,6 +1003,7 @@ export default function ScheduleBoard() {
           runId={detail.runId}
           anchor={detail.anchor}
           lanes={lanes}
+          journey={chainFor(detail.runId, weave)}
           index={beltOrders.backing.indexOf(detail.runId)}
           orderLength={beltOrders.backing.length}
           inSequence={beltOrders.backing.includes(detail.runId)}
@@ -1767,7 +1688,7 @@ function Bar({
 
   if (!interactive) {
     return (
-      <span style={style} title={title} data-weave-run={run.id}>
+      <span style={style} title={title}>
         {body}
       </span>
     );
@@ -1791,7 +1712,7 @@ function Bar({
     <>
       <button
         type="button"
-        data-weave-run={run.id}
+       
         onClick={(e) => onSelect(e.currentTarget)}
         onPointerDown={movable ? onDragStart : undefined}
         // Not `aria-pressed`: this isn't a toggle, it opens a details card.
@@ -1935,6 +1856,7 @@ function RunPopover({
   runId,
   anchor,
   lanes,
+  journey,
   index,
   orderLength,
   inSequence,
@@ -1945,6 +1867,8 @@ function RunPopover({
   runId: string;
   anchor: DOMRect;
   lanes: ReadonlyArray<{ code: string; centreName: string; constraint: boolean; layout: LaneLayout }>;
+  /** Every stage this material passes through, tufting first. */
+  journey: ReadonlyArray<WeaveNode>;
   index: number;
   orderLength: number;
   inSequence: boolean;
@@ -2091,6 +2015,36 @@ function RunPopover({
           </span>
         ))}
       </div>
+
+      {/* Where this material has been and where it is going.
+          The board draws one card per stage on its own belt, so a lot's route
+          through the plant is only visible by reading four lanes at once. The
+          stages are the same genealogy the hover overlay used to draw as lines
+          across the board — read here instead, where each one can carry its
+          belt and its clock rather than needing to be hovered to exist. */}
+      {journey.length > 1 && (
+        <div style={{ padding: "10px 12px", borderTop: "1px solid var(--border-light)" }}>
+          <PanelTimeline
+            title="Through the plant"
+            idPrefix={`run-${run.id}`}
+            milestones={journey.map((n) => ({
+              id: n.runId,
+              label: `${n.centreName} · ${n.laneCode}`,
+              /* Position in the route, not wall-clock: the card you opened is
+                 where the material is, everything before it is done and
+                 everything after is still to come. */
+              status:
+                n.runId === run.id
+                  ? ("active" as const)
+                  : n.centreIdx < (journey.find((x) => x.runId === run.id)?.centreIdx ?? 0)
+                    ? ("completed" as const)
+                    : ("pending" as const),
+              date: `${clockAt(n.start)} – ${clockAt(n.start + n.hours)}`,
+              events: [],
+            }))}
+          />
+        </div>
+      )}
 
       <div
         className="flex items-center justify-between flex-wrap"
