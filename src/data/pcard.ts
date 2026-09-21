@@ -46,7 +46,7 @@ export const PCARD_KPIS: ReadonlyArray<PcardKpi> = [
     label: "Statements evaluated",
     value: "1,284",
     detail: "Every submitted statement",
-    href: null, // → Audit Records / all, once built
+    href: "/p-card/records?tab=all",
   },
   {
     key: "review",
@@ -61,7 +61,7 @@ export const PCARD_KPIS: ReadonlyArray<PcardKpi> = [
     label: "Auto-cleared",
     value: "1,236",
     detail: "96.3% required no human touch",
-    href: null, // → Audit Records / auto-cleared, once built
+    href: "/p-card/records?tab=auto-cleared",
   },
   {
     key: "returned",

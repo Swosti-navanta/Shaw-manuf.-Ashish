@@ -15,6 +15,9 @@ import Sidebar from "@/components/layout/Sidebar";
 import { YarnConeMask } from "@/components/ui/YarnCone";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { ChatPanelProvider } from "@/context/ChatPanelContext";
+import { PcardProvider } from "@/context/PcardContext";
+import StatementReviewModal from "@/app/(portal)/p-card/_components/StatementReviewModal";
+import PcardToast from "@/app/(portal)/p-card/_components/PcardToast";
 
 export default function PortalLayout({ children }: { children: ReactNode }) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -35,6 +38,9 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
             <YarnProvider>
               <DetailDrawerProvider>
               <ChatPanelProvider>
+              {/* P-Card decisions + the statement modal. Inside Chat so the
+                  modal's Ask AI can start a run. */}
+              <PcardProvider>
               <div className="flex h-screen w-screen overflow-hidden">
                 <Sidebar expanded={sidebarExpanded} onExpandedChange={setSidebarExpanded} />
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -72,8 +78,11 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <DetailDrawer />
+              <StatementReviewModal />
+              <PcardToast />
               {/* One shared cone silhouette; every bar tints its own copy. */}
               <YarnConeMask />
+              </PcardProvider>
               </ChatPanelProvider>
             </DetailDrawerProvider>
               </YarnProvider>

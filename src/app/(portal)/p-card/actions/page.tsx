@@ -12,6 +12,7 @@ import {
   type DataTableColumn,
 } from "@navanta-ai/design-system";
 import { useChatPanel } from "@/context/ChatPanelContext";
+import { usePcard } from "@/context/PcardContext";
 import {
   ACTION_TABS,
   NEEDS_REVIEW,
@@ -52,6 +53,7 @@ function ActionQueue() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { startTask } = useChatPanel();
+  const { openStatement } = usePcard();
 
   const urlTab = searchParams.get("tab");
   const [tab, setTab] = useState<ActionTab>(isTab(urlTab) ? urlTab : "needs-review");
@@ -72,6 +74,8 @@ function ActionQueue() {
   const review = (r: NeedsReviewRow) => startTask(reviewStatementTask(r));
   const check = (r: ReturnedRow) => startTask(checkReturnStatusTask(r));
   const reaudit = (r: ReadyRow) => startTask(reauditTask(r));
+  // The first column opens the work object itself — the statement modal.
+  const open = (id: string) => openStatement(id);
 
   const total =
     tab === "needs-review" ? NEEDS_REVIEW.length : tab === "returned" ? RETURNED_ROWS.length : READY_ROWS.length;
@@ -108,9 +112,9 @@ function ActionQueue() {
           />
         }
       >
-        {tab === "needs-review" && <NeedsReviewTable onReview={review} />}
-        {tab === "returned" && <ReturnedTable onCheck={check} />}
-        {tab === "ready" && <ReadyTable onReaudit={reaudit} />}
+        {tab === "needs-review" && <NeedsReviewTable onReview={review} onOpen={open} />}
+        {tab === "returned" && <ReturnedTable onCheck={check} onOpen={open} />}
+        {tab === "ready" && <ReadyTable onReaudit={reaudit} onOpen={open} />}
       </TableShell>
     </div>
   );
@@ -166,7 +170,7 @@ const SEVERITY_TONE: Record<NeedsReviewRow["severity"], ChipTone> = { Major: "ma
 
 /* ─── Needs review ──────────────────────────────────────────────────────── */
 
-function NeedsReviewTable({ onReview }: { onReview: (r: NeedsReviewRow) => void }) {
+function NeedsReviewTable({ onReview, onOpen }: { onReview: (r: NeedsReviewRow) => void; onOpen: (id: string) => void }) {
   const columns = useMemo<DataTableColumn<NeedsReviewRow>[]>(
     () => [
       {
@@ -175,7 +179,7 @@ function NeedsReviewTable({ onReview }: { onReview: (r: NeedsReviewRow) => void 
         alwaysVisible: true,
         minWidth: 180,
         stopRowClick: true,
-        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onReview(r)} />,
+        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onOpen(r.statement)} />,
       },
       { key: "plant", label: "Plant / department", minWidth: 160, cell: (r) => <Body>{r.plantDept}</Body> },
       { key: "why", label: "Why selected", minWidth: 140, cell: (r) => <Body muted>{r.whySelected}</Body> },
@@ -204,7 +208,7 @@ function NeedsReviewTable({ onReview }: { onReview: (r: NeedsReviewRow) => void 
         ),
       },
     ],
-    [onReview],
+    [onReview, onOpen],
   );
 
   return (
@@ -214,7 +218,7 @@ function NeedsReviewTable({ onReview }: { onReview: (r: NeedsReviewRow) => void 
       rowKey={(r) => r.statement}
       rowHeight={60}
       rowBorderColor="#F1F3F5"
-      onRowClick={onReview}
+      onRowClick={(r) => onOpen(r.statement)}
     />
   );
 }
@@ -231,7 +235,7 @@ const RETURNED_TONE: Record<ReturnedRow["state"], ChipTone> = {
   "Completed · with finding": "neutral",
 };
 
-function ReturnedTable({ onCheck }: { onCheck: (r: ReturnedRow) => void }) {
+function ReturnedTable({ onCheck, onOpen }: { onCheck: (r: ReturnedRow) => void; onOpen: (id: string) => void }) {
   const columns = useMemo<DataTableColumn<ReturnedRow>[]>(
     () => [
       {
@@ -240,7 +244,7 @@ function ReturnedTable({ onCheck }: { onCheck: (r: ReturnedRow) => void }) {
         alwaysVisible: true,
         minWidth: 180,
         stopRowClick: true,
-        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onCheck(r)} />,
+        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onOpen(r.statement)} />,
       },
       { key: "returned", label: "Returned", width: 120, cell: (r) => <Num>{r.returned}</Num> },
       { key: "finding", label: "Last finding", minWidth: 190, cell: (r) => <Body muted>{r.lastFinding}</Body> },
@@ -268,7 +272,7 @@ function ReturnedTable({ onCheck }: { onCheck: (r: ReturnedRow) => void }) {
         ),
       },
     ],
-    [onCheck],
+    [onCheck, onOpen],
   );
 
   return (
@@ -278,14 +282,14 @@ function ReturnedTable({ onCheck }: { onCheck: (r: ReturnedRow) => void }) {
       rowKey={(r) => r.statement}
       rowHeight={60}
       rowBorderColor="#F1F3F5"
-      onRowClick={onCheck}
+      onRowClick={(r) => onOpen(r.statement)}
     />
   );
 }
 
 /* ─── Ready for re-audit ────────────────────────────────────────────────── */
 
-function ReadyTable({ onReaudit }: { onReaudit: (r: ReadyRow) => void }) {
+function ReadyTable({ onReaudit, onOpen }: { onReaudit: (r: ReadyRow) => void; onOpen: (id: string) => void }) {
   const columns = useMemo<DataTableColumn<ReadyRow>[]>(
     () => [
       {
@@ -294,7 +298,7 @@ function ReadyTable({ onReaudit }: { onReaudit: (r: ReadyRow) => void }) {
         alwaysVisible: true,
         minWidth: 180,
         stopRowClick: true,
-        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onReaudit(r)} />,
+        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onOpen(r.statement)} />,
       },
       { key: "orig", label: "Original finding", minWidth: 180, cell: (r) => <Body muted>{r.originalFinding}</Body> },
       { key: "corr", label: "Correction received", minWidth: 150, cell: (r) => <Body>{r.correction}</Body> },
@@ -316,7 +320,7 @@ function ReadyTable({ onReaudit }: { onReaudit: (r: ReadyRow) => void }) {
         ),
       },
     ],
-    [onReaudit],
+    [onReaudit, onOpen],
   );
 
   return (
@@ -326,7 +330,7 @@ function ReadyTable({ onReaudit }: { onReaudit: (r: ReadyRow) => void }) {
       rowKey={(r) => r.statement}
       rowHeight={60}
       rowBorderColor="#F1F3F5"
-      onRowClick={onReaudit}
+      onRowClick={(r) => onOpen(r.statement)}
     />
   );
 }

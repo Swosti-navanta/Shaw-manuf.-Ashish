@@ -63,6 +63,7 @@ const NETWORK_ITEMS: NavDef[] = [
 const PCARD_ITEMS: NavDef[] = [
   { name: "Command center", href: "/p-card", icon: SquaresFour, agent: "P-Card Audit Agent" },
   { name: "Action center", href: "/p-card/actions", icon: ListChecks, agent: "P-Card Audit Agent" },
+  { name: "Audit records", href: "/p-card/records", icon: ShieldCheck, agent: "P-Card Audit Agent" },
 ];
 
 const ALL_ITEMS = [...INBOX_ITEMS, ...FLOOR_ITEMS, ...PLAN_ITEMS, ...NETWORK_ITEMS, ...PCARD_ITEMS];

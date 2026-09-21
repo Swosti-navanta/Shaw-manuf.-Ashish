@@ -14,6 +14,7 @@ import {
 } from "@navanta-ai/design-system";
 import { useChatPanel } from "@/context/ChatPanelContext";
 import { usePersona } from "@/context/PersonaContext";
+import { usePcard } from "@/context/PcardContext";
 import { reviewStatementTask } from "@/data/pcard-flows";
 import {
   FINDINGS_THIS_CYCLE,
@@ -168,6 +169,7 @@ const SEVERITY_TONE: Record<PriorityReview["severity"], ChipTone> = {
 function PriorityReviews() {
   const router = useRouter();
   const { startTask } = useChatPanel();
+  const { openStatement } = usePcard();
   // Review starts the agent's run on that statement right here — the same
   // run the Action Center row would start. Falls back to the queue only if
   // the statement isn't in the review seed.
@@ -188,7 +190,7 @@ function PriorityReviews() {
         <StatementCell
           statement={r.statement}
           cardholder={r.cardholder}
-          onOpen={() => openReview(r.statement)}
+          onOpen={() => openStatement(r.statement)}
         />
       ),
     },
@@ -247,7 +249,7 @@ function PriorityReviews() {
         rowKey={(r) => r.statement}
         rowHeight={60}
         rowBorderColor="#F1F3F5"
-        onRowClick={(r) => openReview(r.statement)}
+        onRowClick={(r) => openStatement(r.statement)}
       />
     </DashCard>
   );

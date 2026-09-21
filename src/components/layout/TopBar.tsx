@@ -38,6 +38,9 @@ const ROUTE_LABELS: Record<string, string> = {
   thresholds: "Thresholds",
   settings: "Settings",
   audit: "Audit log",
+  "p-card": "P-Card Command Center",
+  actions: "Action Center",
+  records: "Audit Records",
 };
 
 export default function TopBar() {
