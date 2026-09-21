@@ -55,7 +55,17 @@ const NETWORK_ITEMS: NavDef[] = [
   { name: "Thresholds", href: "/thresholds", icon: Sliders, agent: "Limits" },
 ];
 
-const ALL_ITEMS = [...INBOX_ITEMS, ...FLOOR_ITEMS, ...PLAN_ITEMS, ...NETWORK_ITEMS];
+// The P-Card audit experience. A different job entirely — indirect
+// procurement, not the plant — so it never shares a section with the
+// manufacturing surfaces. The persona allowlist hides one set or the other.
+// Only the surfaces that exist are listed; a nav entry to a 404 teaches
+// people the rest of the rail can't be trusted either.
+const PCARD_ITEMS: NavDef[] = [
+  { name: "Command center", href: "/p-card", icon: SquaresFour, agent: "P-Card Audit Agent" },
+  { name: "Action center", href: "/p-card/actions", icon: ListChecks, agent: "P-Card Audit Agent" },
+];
+
+const ALL_ITEMS = [...INBOX_ITEMS, ...FLOOR_ITEMS, ...PLAN_ITEMS, ...NETWORK_ITEMS, ...PCARD_ITEMS];
 
 const SETTINGS_HREF = "/settings/audit";
 
@@ -79,6 +89,9 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
     // first-match `activeKey` below would always pick the parent.
     if (href === "/scheduling") return pathname === "/scheduling";
     if (href === "/quality") return pathname === "/quality";
+    // Command center is the parent of every other audit route — exact match
+    // for the same reason as the scheduling board.
+    if (href === "/p-card") return pathname === "/p-card";
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
@@ -106,6 +119,7 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
   const floor = visible(FLOOR_ITEMS);
   const plan = visible(PLAN_ITEMS);
   const network = visible(NETWORK_ITEMS);
+  const pcard = visible(PCARD_ITEMS);
 
   // Ordered the way work actually flows: the plan is set, then it is executed.
   // Yarn sits with execution rather than with the plan — Sable's dye lots and
@@ -115,6 +129,7 @@ export default function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
   if (plan.length) sections.push({ label: "The plan", items: plan.map(toItem) });
   if (floor.length) sections.push({ label: "On the floor", items: floor.map(toItem) });
   if (network.length) sections.push({ label: "Network", items: network.map(toItem) });
+  if (pcard.length) sections.push({ label: "P-Card audit", items: pcard.map(toItem) });
 
   const activeKey = ALL_ITEMS.find((d) => isActive(d.href))?.href;
   const profile = PERSONAS[persona];

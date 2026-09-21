@@ -353,6 +353,61 @@ export const PAGE_AGENTS: Record<string, PageAgent> = {
 
   "/overview": SAGE,
   "/sage": SAGE,
+
+  // The audit experience has its own agent. It recommends, drafts and
+  // prepares; it never finalises, returns or sends without confirmation.
+  "/p-card": {
+    agent: "P-Card Audit Agent",
+    role: "Review by exception",
+    intro:
+      "I evaluated every statement this cycle and cleared the ones that passed. Ask me about the ones I've routed to you.",
+    prompts: [
+      {
+        label: "Why is PC-0826-0042 in my queue?",
+        answer: {
+          note: "Two proposed findings, both needing your decision. Ten of its fourteen transactions passed every check.",
+          rows: [
+            { label: "F-01", text: "Missing receipts on lines 3, 8 and 11 · P-Card Policy 4.2 · Major." },
+            { label: "F-02", text: "Business purpose reads “supplies” on line 7 · Policy 3.1 · Minor." },
+            { label: "Exposure", text: "$4,180 across the three unreceipted lines." },
+          ],
+        },
+      },
+      {
+        label: "What did you clear on your own?",
+        answer: {
+          note: "1,236 statements — 96.3% of the cycle — passed every configured check and never reached a person.",
+          rows: [
+            { label: "Receipt coverage", text: "Every line over the threshold had a readable receipt." },
+            { label: "Classification", text: "Expense type matched merchant category." },
+            { label: "Meals, tips, tax", text: "All inside policy. Recurring charges within drift band." },
+          ],
+        },
+      },
+      {
+        label: "Which rules are interrupting me for nothing?",
+        answer: {
+          note: "One is below its precision floor and one is on watch.",
+          rows: [
+            { label: "Tax magnitude", text: "31% confirm rate — fires 12 times, you dismiss two in three." },
+            { label: "Meal per head", text: "47% — on watch. Threshold may be too tight for Sales." },
+            { label: "Fix", text: "Propose a threshold change; only a program manager can activate it." },
+          ],
+        },
+      },
+      {
+        label: "What can I return, and what happens when I do?",
+        answer: {
+          note: "Anything with a confirmed finding the cardholder can correct. Returning parks it until reapproval.",
+          rows: [
+            { label: "Drafts", text: "I write the email with the exact lines and corrections requested." },
+            { label: "State", text: "Leaves your queue → awaiting cardholder → awaiting manager." },
+            { label: "Confirm", text: "Nothing sends until you press Return statement." },
+          ],
+        },
+      },
+    ],
+  },
   "/performance": SAGE_LIMITS,
   "/thresholds": SAGE_LIMITS,
   "/settings": SAGE,

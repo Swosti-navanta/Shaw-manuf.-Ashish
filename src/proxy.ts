@@ -19,6 +19,7 @@ const PROTECTED_PREFIXES = [
   "/performance",
   "/thresholds",
   "/settings",
+  "/p-card",
 ];
 
 function readPersona(req: NextRequest): Persona {
@@ -64,5 +65,6 @@ export const config = {
     "/performance/:path*",
     "/thresholds/:path*",
     "/settings/:path*",
+    "/p-card/:path*",
   ],
 };

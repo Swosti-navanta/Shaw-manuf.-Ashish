@@ -13,7 +13,7 @@
 // Persisted in a cookie so the proxy (src/proxy.ts) can route-guard against
 // the same source of truth the client uses.
 
-export type Persona = "vp" | "scheduler" | "plant";
+export type Persona = "vp" | "scheduler" | "plant" | "pcard";
 
 export interface PersonaProfile {
   /** Display name shown in the profile menu. */
@@ -49,9 +49,18 @@ export const PERSONAS: Record<Persona, PersonaProfile> = {
     initials: "DW",
     agents: ["Rowan", "Wren", "Sawyer", "Sable"],
   },
+  // The second experience in the portal: indirect procurement, not the plant.
+  // The P-Card Auditor sees only the audit surfaces — none of the
+  // manufacturing agents' queues reach her desk, and hers reach nobody else's.
+  pcard: {
+    name: "Carol Nance",
+    role: "P-Card Auditor",
+    initials: "CN",
+    agents: ["P-Card Audit Agent"],
+  },
 };
 
-export const PERSONA_ORDER: ReadonlyArray<Persona> = ["vp", "scheduler", "plant"];
+export const PERSONA_ORDER: ReadonlyArray<Persona> = ["vp", "scheduler", "plant", "pcard"];
 
 /** Where the demo opens: the Plant Manager, who can reach every surface so
  *  nothing reads as missing on first load. */
@@ -82,6 +91,9 @@ export const PERSONA_PAGES: Record<Persona, ReadonlyArray<string>> = {
     "/sage",
     "/thresholds",
   ],
+  // The audit experience only. The prefix covers every /p-card route, so the
+  // remaining audit surfaces land here as they're built.
+  pcard: ["/p-card"],
 };
 
 /** Where each persona lands after sign-in — the surface they live in. */
@@ -89,6 +101,7 @@ export const PERSONA_HOME: Record<Persona, string> = {
   vp: "/overview",
   scheduler: "/scheduling",
   plant: "/overview",
+  pcard: "/p-card",
 };
 
 /** Thresholds is a senior/network view — only the VP and the Plant Manager
@@ -113,5 +126,5 @@ export function isPathAllowedForPersona(
 }
 
 export function isPersona(value: string | undefined): value is Persona {
-  return value === "vp" || value === "scheduler" || value === "plant";
+  return value === "vp" || value === "scheduler" || value === "plant" || value === "pcard";
 }
