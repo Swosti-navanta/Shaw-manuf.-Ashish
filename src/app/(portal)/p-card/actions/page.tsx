@@ -22,6 +22,7 @@ import {
   type ReadyRow,
   type ReturnedRow,
 } from "@/data/pcard";
+import { checkReturnStatusTask, reauditTask, reviewStatementTask } from "@/data/pcard-flows";
 import StatusChip, { type ChipTone } from "../_components/StatusChip";
 
 /**
@@ -50,7 +51,7 @@ const isTab = (v: string | null): v is ActionTab =>
 function ActionQueue() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { openChat } = useChatPanel();
+  const { startTask } = useChatPanel();
 
   const urlTab = searchParams.get("tab");
   const [tab, setTab] = useState<ActionTab>(isTab(urlTab) ? urlTab : "needs-review");
@@ -65,9 +66,12 @@ function ActionQueue() {
     router.replace(`/p-card/actions?tab=${next}`);
   };
 
-  // A row action opens the agent alongside the object — it prepares the
-  // review, it doesn't execute anything. Confirmation stays with Carol.
-  const review = () => openChat();
+  // A row action opens the agent alongside *that* statement — it runs the
+  // checks and prepares the decision, it doesn't execute anything.
+  // Confirmation stays with Carol, on the result card.
+  const review = (r: NeedsReviewRow) => startTask(reviewStatementTask(r));
+  const check = (r: ReturnedRow) => startTask(checkReturnStatusTask(r));
+  const reaudit = (r: ReadyRow) => startTask(reauditTask(r));
 
   const total =
     tab === "needs-review" ? NEEDS_REVIEW.length : tab === "returned" ? RETURNED_ROWS.length : READY_ROWS.length;
@@ -105,8 +109,8 @@ function ActionQueue() {
         }
       >
         {tab === "needs-review" && <NeedsReviewTable onReview={review} />}
-        {tab === "returned" && <ReturnedTable onCheck={review} />}
-        {tab === "ready" && <ReadyTable onReaudit={review} />}
+        {tab === "returned" && <ReturnedTable onCheck={check} />}
+        {tab === "ready" && <ReadyTable onReaudit={reaudit} />}
       </TableShell>
     </div>
   );
@@ -162,7 +166,7 @@ const SEVERITY_TONE: Record<NeedsReviewRow["severity"], ChipTone> = { Major: "ma
 
 /* ─── Needs review ──────────────────────────────────────────────────────── */
 
-function NeedsReviewTable({ onReview }: { onReview: () => void }) {
+function NeedsReviewTable({ onReview }: { onReview: (r: NeedsReviewRow) => void }) {
   const columns = useMemo<DataTableColumn<NeedsReviewRow>[]>(
     () => [
       {
@@ -171,7 +175,7 @@ function NeedsReviewTable({ onReview }: { onReview: () => void }) {
         alwaysVisible: true,
         minWidth: 180,
         stopRowClick: true,
-        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={onReview} />,
+        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onReview(r)} />,
       },
       { key: "plant", label: "Plant / department", minWidth: 160, cell: (r) => <Body>{r.plantDept}</Body> },
       { key: "why", label: "Why selected", minWidth: 140, cell: (r) => <Body muted>{r.whySelected}</Body> },
@@ -191,9 +195,9 @@ function NeedsReviewTable({ onReview }: { onReview: () => void }) {
         align: "right",
         alwaysVisible: true,
         stopRowClick: true,
-        cell: () => (
+        cell: (r) => (
           <span className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={onReview}>
+            <Button variant="outline" size="sm" onClick={() => onReview(r)}>
               Review
             </Button>
           </span>
@@ -227,7 +231,7 @@ const RETURNED_TONE: Record<ReturnedRow["state"], ChipTone> = {
   "Completed · with finding": "neutral",
 };
 
-function ReturnedTable({ onCheck }: { onCheck: () => void }) {
+function ReturnedTable({ onCheck }: { onCheck: (r: ReturnedRow) => void }) {
   const columns = useMemo<DataTableColumn<ReturnedRow>[]>(
     () => [
       {
@@ -236,7 +240,7 @@ function ReturnedTable({ onCheck }: { onCheck: () => void }) {
         alwaysVisible: true,
         minWidth: 180,
         stopRowClick: true,
-        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={onCheck} />,
+        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onCheck(r)} />,
       },
       { key: "returned", label: "Returned", width: 120, cell: (r) => <Num>{r.returned}</Num> },
       { key: "finding", label: "Last finding", minWidth: 190, cell: (r) => <Body muted>{r.lastFinding}</Body> },
@@ -255,9 +259,9 @@ function ReturnedTable({ onCheck }: { onCheck: () => void }) {
         align: "right",
         alwaysVisible: true,
         stopRowClick: true,
-        cell: () => (
+        cell: (r) => (
           <span className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={onCheck}>
+            <Button variant="outline" size="sm" onClick={() => onCheck(r)}>
               Check status
             </Button>
           </span>
@@ -281,7 +285,7 @@ function ReturnedTable({ onCheck }: { onCheck: () => void }) {
 
 /* ─── Ready for re-audit ────────────────────────────────────────────────── */
 
-function ReadyTable({ onReaudit }: { onReaudit: () => void }) {
+function ReadyTable({ onReaudit }: { onReaudit: (r: ReadyRow) => void }) {
   const columns = useMemo<DataTableColumn<ReadyRow>[]>(
     () => [
       {
@@ -290,7 +294,7 @@ function ReadyTable({ onReaudit }: { onReaudit: () => void }) {
         alwaysVisible: true,
         minWidth: 180,
         stopRowClick: true,
-        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={onReaudit} />,
+        cell: (r) => <StatementCell statement={r.statement} cardholder={r.cardholder} onOpen={() => onReaudit(r)} />,
       },
       { key: "orig", label: "Original finding", minWidth: 180, cell: (r) => <Body muted>{r.originalFinding}</Body> },
       { key: "corr", label: "Correction received", minWidth: 150, cell: (r) => <Body>{r.correction}</Body> },
@@ -303,9 +307,9 @@ function ReadyTable({ onReaudit }: { onReaudit: () => void }) {
         align: "right",
         alwaysVisible: true,
         stopRowClick: true,
-        cell: () => (
+        cell: (r) => (
           <span className="flex justify-end">
-            <Button variant="primary" size="sm" onClick={onReaudit}>
+            <Button variant="primary" size="sm" onClick={() => onReaudit(r)}>
               Re-audit
             </Button>
           </span>

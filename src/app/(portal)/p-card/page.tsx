@@ -14,8 +14,10 @@ import {
 } from "@navanta-ai/design-system";
 import { useChatPanel } from "@/context/ChatPanelContext";
 import { usePersona } from "@/context/PersonaContext";
+import { reviewStatementTask } from "@/data/pcard-flows";
 import {
   FINDINGS_THIS_CYCLE,
+  NEEDS_REVIEW,
   PCARD_KPIS,
   PRIORITY_REVIEWS,
   RETURNED_ITEMS,
@@ -165,8 +167,15 @@ const SEVERITY_TONE: Record<PriorityReview["severity"], ChipTone> = {
 
 function PriorityReviews() {
   const router = useRouter();
-  const openReview = (statement: string) =>
-    router.push(`/p-card/actions?tab=needs-review&statement=${statement}`);
+  const { startTask } = useChatPanel();
+  // Review starts the agent's run on that statement right here — the same
+  // run the Action Center row would start. Falls back to the queue only if
+  // the statement isn't in the review seed.
+  const openReview = (statement: string) => {
+    const row = NEEDS_REVIEW.find((r) => r.statement === statement);
+    if (row) startTask(reviewStatementTask(row));
+    else router.push(`/p-card/actions?tab=needs-review&statement=${statement}`);
+  };
 
   const columns: DataTableColumn<PriorityReview>[] = [
     {
