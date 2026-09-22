@@ -82,9 +82,17 @@ export default function PcardCommandCenter() {
         })}
       </KpiGrid>
 
+      {/* Two by two. The floor is `50% - half the gap`, so auto-fit can never
+          fit a third column however wide the screen gets — four cards read as
+          a quadrant rather than a row of three with one stranded underneath.
+          The 440px floor still drops it to a single column under ~880px. */}
       <div
         className="grid"
-        style={{ gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", alignItems: "start" }}
+        style={{
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(max(440px, calc(50% - 8px)), 1fr))",
+          alignItems: "start",
+        }}
       >
         <PriorityReviews />
         <ReturnedAndReaudit />
